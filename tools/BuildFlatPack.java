@@ -17,6 +17,8 @@ import java.util.stream.Stream;
  * - 이모티콘: Twemoji (그림 CC-BY 4.0, https://github.com/jdecked/twemoji) SVG 를 64/128/256px PNG 로
  * - 아이콘: Google Material Symbols Rounded (Apache 2.0) SVG 를 흰색 64px PNG 로 (게임에서 테마 색으로 칠한다)
  *
+ * - 스티커, 핀, 알림, 그림, 팝업, 휴지통 아이콘은 직접 그린 tools/icons/*.svg (프로젝트와 같은 MIT)
+ *
  * 준비: <원본 폴더>/svg/{코드포인트}.svg, <원본 폴더>/icons/{add,settings,mood,close}.svg,
  *       <원본 폴더>/LICENSE-twemoji-graphics, <원본 폴더>/LICENSE-material-icons
  * 실행: java -cp jsvg-1.6.1.jar tools/BuildFlatPack.java <원본 폴더> <프로젝트 폴더>
@@ -54,7 +56,8 @@ public class BuildFlatPack {
 		{"fire", ":불꽃:", "불꽃", "1f525"},
 	};
 	/** {아이콘 이름, Material Symbols 원본 이름} */
-	static final String[][] ICONS = {{"add", "add"}, {"settings", "settings"}, {"emote", "mood"}, {"close", "close"}};
+	static final String[][] ICONS = {{"add", "add"}, {"settings", "settings"}, {"emote", "mood"}, {"close", "close"}, {"sticker", "sticker"}, {"pin", "pin"},
+		{"bell", "bell"}, {"bell_off", "bell_off"}, {"image", "image"}, {"popup", "popup"}, {"trash", "trash"}};
 	/** 화면에 그려지는 크기에 맞는 그림을 고를 수 있도록 여러 크기로 만든다 */
 	static final int[] EMOTE_SIZES = {64, 128, 256};
 	static final int ICON_SIZE = 64;
@@ -75,7 +78,9 @@ public class BuildFlatPack {
 
 		clear(icons);
 		for (String[] icon : ICONS) {
-			BufferedImage img = render(src.resolve("icons").resolve(icon[1] + ".svg"), ICON_SIZE);
+			// tools/icons 에 있는 아이콘(직접 그린 것)이 먼저, 없으면 Material Symbols 원본
+			Path own = Path.of(args[1], "tools/icons", icon[1] + ".svg");
+			BufferedImage img = render(Files.exists(own) ? own : src.resolve("icons").resolve(icon[1] + ".svg"), ICON_SIZE);
 			// 흰색으로 바꾸고 투명도만 남긴다 (게임에서 색을 입힌다)
 			for (int y = 0; y < img.getHeight(); y++) {
 				for (int x = 0; x < img.getWidth(); x++) img.setRGB(x, y, (img.getRGB(x, y) & 0xFF000000) | 0xFFFFFF);

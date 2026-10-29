@@ -38,7 +38,8 @@ public final class PopupChat {
 	private static final int GRIP = 7;
 	private static final int MIN_W = 120;
 	private static final int MIN_H = 70;
-	private static final long BLINK_MS = 400;
+	/** 알림 탭이 한 번 밝아졌다 어두워지는 시간 */
+	private static final long PULSE_MS = 1100;
 	/** 탭을 이만큼 끌어야 분리/합치기 동작으로 본다 (그 전에는 그냥 클릭) */
 	private static final int TEAR_DISTANCE = 6;
 
@@ -70,6 +71,10 @@ public final class PopupChat {
 	/** 이모티콘 고르는 창은 한 번에 하나. 연 팝업에서 보낸다. */
 	private static final EmotePicker picker = new EmotePicker();
 	private static PopupWindow pickerOwner;
+	/** 스티커 편집 중인 팝업 (편집 중에는 스티커 고르는 창이 그 옆에 열려 있다) */
+	private static final StickerPicker stickerPicker = new StickerPicker();
+	private static final StickerLayer stickerLayer = new StickerLayer();
+	private static PopupWindow stickerOwner;
 
 	private static Drag drag = Drag.NONE;
 	private static PopupWindow dragWindow;
@@ -192,6 +197,8 @@ public final class PopupChat {
 	private static void merge(PopupWindow from, PopupWindow to) {
 		String active = from.active;
 		for (String name : from.tabs) if (indexOf(to, name) < 0) to.tabs.add(name);
+		// 합쳐지는 창의 스티커도 옮겨 붙인다
+		to.stickers.addAll(from.stickers);
 		removeWindow(from);
 		bringToFront(to);
 		if (active != null) switchTo(to, active);
@@ -231,11 +238,15 @@ public final class PopupChat {
 
 		ScreenMouseEvents.allowMouseClick(screen).register((s, mx, my, button) -> !onClick(s, mx, my, button));
 		ScreenMouseEvents.allowMouseScroll(screen).register((s, mx, my, horizontal, vertical) -> !onScroll(mx, my, vertical));
-		ScreenMouseEvents.afterMouseRelease(screen).register((s, mx, my, button) -> finishDrag((int) mx, (int) my));
+		ScreenMouseEvents.afterMouseRelease(screen).register((s, mx, my, button) -> {
+			finishDrag((int) mx, (int) my);
+			stickerLayer.release();
+		});
 		ScreenKeyboardEvents.allowKeyPress(screen).register((s, key, scancode, modifiers) -> !onKey(s, key));
 		ScreenEvents.remove(screen).register(s -> {
 			drag = Drag.NONE;
 			picker.close();
+			stopStickers();
 			if (attachedScreen == s) attachedScreen = null;
 		});
 	}
@@ -287,13 +298,64 @@ public final class PopupChat {
 		return mx >= bx && mx < bx + EMOTE_BUTTON && my >= by && my < by + INPUT_H;
 	}
 
+	/** 제목줄의 스티커 버튼 (닫기 버튼 왼쪽) */
+	private static int stickerButtonX(PopupWindow w) {
+		return w.x + w.width - 2 * closeButtonSize() - 3;
+	}
+
+	/** 팝업 스티커는 화면 어디에나. 핀으로 고정한 것은 팝업 왼쪽 위 기준이라 팝업을 따라간다 */
+	private static StickerLayer.Frame stickerFrame(PopupWindow w) {
+		Window window = MinecraftClient.getInstance().getWindow();
+		return new StickerLayer.Frame(window.getScaledWidth(), window.getScaledHeight(), w.x, w.y, true);
+	}
+
+	/** 스티커 편집 켜기/끄기. 고르는 창은 팝업 오른쪽에 (자리가 없으면 왼쪽에) */
+	private static void toggleStickers(PopupWindow w) {
+		picker.close();
+		if (stickerOwner == w) {
+			stopStickers();
+			return;
+		}
+		MinecraftClient client = MinecraftClient.getInstance();
+		int screenW = client.getWindow().getScaledWidth(), screenH = client.getWindow().getScaledHeight();
+		int px = w.x + w.width + 4;
+		if (px + StickerPicker.WIDTH > screenW) px = w.x - StickerPicker.WIDTH - 4;
+		stickerOwner = w;
+		stickerPicker.openAt(px, w.y, screenW, screenH);
+	}
+
+	private static void stopStickers() {
+		stickerLayer.release();
+		stickerPicker.close();
+		stickerOwner = null;
+	}
+
+	/** 새 스티커는 팝업 가운데에 (여러 개 붙이면 조금씩 비껴서). 처음에는 고정 안 함 */
+	private static void addSticker(PopupWindow w, String source) {
+		ModConfig.Sticker sticker = new ModConfig.Sticker(source, 40);
+		StickerLayer.Frame frame = stickerFrame(w);
+		int shift = (w.stickers.size() % 5) * 10;
+		sticker.x = (w.x + w.width / 2f + shift) / Math.max(1, frame.screenW());
+		sticker.y = (w.y + w.height / 2f + shift) / Math.max(1, frame.screenH());
+		w.stickers.add(sticker);
+		ModConfig.save();
+	}
+
 	private static boolean onClick(Screen screen, double mx, double my, int button) {
+		if (stickerOwner != null) {
+			if (stickerPicker.contains(mx, my)) {
+				String source = stickerPicker.click(mx, my);
+				if (source != null) addSticker(stickerOwner, source);
+				return true;
+			}
+			if (stickerLayer.press(stickerOwner.stickers, stickerFrame(stickerOwner), mx, my, button)) return true;
+		}
 		if (picker.isOpen()) {
 			if (picker.contains(mx, my)) {
 				Emotes.Emote emote = picker.click(mx, my);
 				PopupWindow owner = pickerOwner;
 				Conversation c = owner != null ? active(owner, openConversations(owner)) : null;
-				// 카카오톡 이모티콘처럼 고르면 바로 보낸다
+				// 메신저 이모티콘처럼 고르면 바로 보낸다
 				if (emote != null && c != null && WhisperSender.send(c.name, emote.token())) {
 					picker.close();
 					rt(owner).view.resetScroll();
@@ -340,10 +402,12 @@ public final class PopupChat {
 		} else if (my < titleTop + titleH()) {
 			if (!left) return true;
 			if (mx >= w.x + w.width - closeButtonSize() - 2) closeTab(w, c.name);
+			else if (mx >= stickerButtonX(w)) toggleStickers(w);
 			else startDrag(Drag.MOVE, w, ix, iy);
 		} else if (left && clickedName != null && !WhisperScreen.isMe(clickedName)) {
 			open(clickedName);
 		} else if (left && onEmoteButton(w, mx, my)) {
+			stopStickers();
 			MinecraftClient client = MinecraftClient.getInstance();
 			pickerOwner = w;
 			picker.openAbove(emoteButtonX(w) + EMOTE_BUTTON, inputY(w), client.getWindow().getScaledWidth(), client.getWindow().getScaledHeight());
@@ -409,6 +473,7 @@ public final class PopupChat {
 
 	private static boolean onScroll(double mx, double my, double amount) {
 		if (picker.scroll(mx, my, amount)) return true;
+		if (stickerPicker.scroll(mx, my, amount)) return true;
 		PopupWindow w = windowAt(mx, my);
 		if (w == null) return false;
 		rt(w).view.scroll(amount, msgBottom(w) - msgTop(w, rt(w).headerH));
@@ -481,6 +546,8 @@ public final class PopupChat {
 			drag = Drag.NONE;
 			picker.close();
 		}
+		// 채팅창이 닫혔거나 편집하던 팝업이 없어지면 스티커 편집도 끝
+		if (stickerOwner != null && (!interactive || !windows().contains(stickerOwner))) stopStickers();
 
 		TextRenderer tr = client.textRenderer;
 		int screenW = context.getScaledWindowWidth(), screenH = context.getScaledWindowHeight();
@@ -488,6 +555,10 @@ public final class PopupChat {
 		mouseX = (int) (client.mouse.getX() * screenW / window.getWidth());
 		mouseY = (int) (client.mouse.getY() * screenH / window.getHeight());
 		if (drag != Drag.NONE) updateDrag(client);
+		if (stickerLayer.dragging()) {
+			if (GLFW.glfwGetMouseButton(window.getHandle(), GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS) stickerLayer.drag(mouseX, mouseY);
+			else stickerLayer.release();
+		}
 
 		// 끌고 있는 것을 놓으면 합쳐질 창
 		PopupWindow dropTarget = null;
@@ -502,6 +573,7 @@ public final class PopupChat {
 		}
 		updateInputs(list, interactive);
 		picker.render(context, tr, mouseX, mouseY);
+		stickerPicker.render(context, tr, mouseX, mouseY);
 
 		if (drag == Drag.TAB && dragTab != null) {
 			// 끌고 있는 탭을 마우스 옆에 그린다
@@ -538,6 +610,12 @@ public final class PopupChat {
 		// 모서리 둥글기: 탭 줄이 있으면 위쪽은 탭이 덮으므로 아래 모서리만
 		int r = ModConfig.get().sizes.cornerRadius;
 		Shapes.fill(context, x, bodyY, x + width, y + h, bodyBg, r, !hasTabs, !hasTabs, true, true);
+		// 배경 그림: 제목줄 아래 전체 (아래 모서리는 창과 같이 둥글게). 채팅창이 닫혀 있으면 팝업처럼 흐리게
+		ModConfig.Background bg = ChatBackground.of(c);
+		if (ChatBackground.enabled(bg, true)) {
+			float alpha = interactive ? 1f : Math.max(10, Math.min(100, ModConfig.get().sizes.popupOpacity)) / 100f;
+			ChatBackground.draw(context, bg, x, bodyY + titleH() + 1, x + width, y + h, r, false, false, true, true, alpha);
+		}
 		Shapes.fill(context, x, bodyY, x + width, bodyY + titleH(), argb(theme.headerBg, interactive), r, !hasTabs, !hasTabs, false, false);
 		context.fill(x, bodyY + titleH(), x + width, bodyY + titleH() + 1, argb(theme.divider, interactive)); // 제목줄과 내용 경계
 		// 테두리는 채팅창을 열었을 때나 닫았을 때나 같은 모양 (닫혀 있으면 흐리게만)
@@ -548,13 +626,21 @@ public final class PopupChat {
 		int titleColor = c.channel() != null ? theme.channelColor(c.channel()) : theme.text;
 		float ps = popupScale();
 		int titleTextY = bodyY + (titleH() - UiFont.height(ps)) / 2;
-		UiFont.drawText(context, tr, UiFont.text(UiFont.trim(tr, title, width - titleH() - 8, ps)), x + PAD, titleTextY, titleColor, ps, false);
+		UiFont.drawText(context, tr, UiFont.text(UiFont.trim(tr, title, width - 2 * titleH() - 8, ps)), x + PAD, titleTextY, titleColor, ps, false);
 
 		// 닫기 버튼: 다른 아이콘 버튼처럼 둥근 바탕 + 아이콘 (가리키면 바탕이 보인다)
 		int cb = closeButtonSize(), cx = x + width - cb - 2, cy = bodyY + (titleH() - cb) / 2;
 		boolean closeHover = interactive && mouseX >= cx && mouseX < cx + cb && mouseY >= cy && mouseY < cy + cb;
 		if (closeHover) UiButton.fillRounded(context, cx, cy, cx + cb, cy + cb, Theme.mix(theme.headerBg | 0xFF000000, theme.text, 0.15f));
 		UiButton.drawIcon(context, UiButton.icon("close"), cx, cy, cb, cb, argb(closeHover ? theme.text : theme.mutedText, interactive));
+		// 스티커 버튼: 채팅창을 열었을 때만. 편집 중이면 눌린 모양
+		if (interactive) {
+			int sx = stickerButtonX(w);
+			boolean editing = stickerOwner == w;
+			boolean stickerHover = mouseX >= sx && mouseX < sx + cb && mouseY >= cy && mouseY < cy + cb;
+			if (editing || stickerHover) UiButton.fillRounded(context, sx, cy, sx + cb, cy + cb, Theme.mix(theme.headerBg | 0xFF000000, theme.text, editing ? 0.25f : 0.15f));
+			UiButton.drawIcon(context, UiButton.icon("sticker"), sx, cy, cb, cb, editing || stickerHover ? theme.text : theme.mutedText);
+		}
 
 		// 대화 영역과 입력줄 자리는 채팅창을 열든 닫든 같다 (열 때 창 모양이 바뀌지 않게)
 		runtime.view.setAreaScale(popupScale());
@@ -579,6 +665,12 @@ public final class PopupChat {
 		boolean on = picker.isOpen() && pickerOwner == w;
 		UiButton.fillRounded(context, bx, by, bx + EMOTE_BUTTON, by + INPUT_H, argb(on || hover ? theme.headerBg : theme.tab(1), interactive));
 		UiButton.drawIcon(context, UiButton.icon("emote"), bx, by, EMOTE_BUTTON, INPUT_H, argb(theme.text, interactive));
+		// 스티커는 팝업 위에 붙인 것처럼 맨 위에. 앞에 그린 글자가 비치지 않게 먼저 내보낸다
+		if (!w.stickers.isEmpty()) {
+			context.draw();
+			float alpha = interactive ? 1f : Math.max(10, Math.min(100, ModConfig.get().sizes.popupOpacity)) / 100f;
+			stickerLayer.render(context, w.stickers, stickerFrame(w), interactive && stickerOwner == w, mouseX, mouseY, alpha);
+		}
 		if (interactive) {
 			// 오른쪽 아래 크기 조절 손잡이
 			for (int i = 0; i < 3; i++) {
@@ -605,10 +697,14 @@ public final class PopupChat {
 				covered = input.getX() < above.x + above.width && input.getX() + input.getWidth() > above.x
 						&& input.getY() < above.y + above.height && input.getY() + input.getHeight() > above.y;
 			}
-			// 이모티콘 고르는 창에 가려지는 입력칸도 숨긴다
+			// 이모티콘/스티커 고르는 창에 가려지는 입력칸도 숨긴다
 			if (picker.isOpen()) {
 				covered |= input.getX() < picker.x() + EmotePicker.WIDTH && input.getX() + input.getWidth() > picker.x()
 						&& input.getY() < picker.y() + EmotePicker.HEIGHT && input.getY() + input.getHeight() > picker.y();
+			}
+			if (stickerPicker.isOpen()) {
+				covered |= input.getX() < stickerPicker.x() + StickerPicker.WIDTH && input.getX() + input.getWidth() > stickerPicker.x()
+						&& input.getY() < stickerPicker.y() + StickerPicker.HEIGHT && input.getY() + input.getHeight() > stickerPicker.y();
 			}
 			input.visible = interactive && runtime.rendered && !covered;
 		}
@@ -621,7 +717,9 @@ public final class PopupChat {
 		int natural = 0;
 		for (Conversation c : open) natural += UiFont.width(tr, tabLabel(c), tabScale()) + 8;
 		int even = w / open.size();
-		boolean blinkOn = (System.currentTimeMillis() / BLINK_MS) % 2 == 0;
+		// 안 읽은 메시지가 온 탭: 0 → 1 → 0 으로 부드럽게 오가는 밝기로 탭 안이 강조색으로 차올랐다 빠진다
+		// (탭 밖으로는 번지지 않게)
+		float pulse = pulse(System.currentTimeMillis());
 
 		int tx = x;
 		for (int i = 0; i < open.size(); i++) {
@@ -631,18 +729,18 @@ public final class PopupChat {
 			if (i == open.size() - 1 && natural > w) tw = x + w - tx; // 나눗셈 나머지는 마지막 탭에
 
 			boolean isActive = c == active;
-			boolean alert = !isActive && c.unread > 0;
-			// 채널은 메시지가 계속 들어오므로 깜빡이지 않고 글자색만 바꾼다
-			boolean blink = alert && blinkOn && c.channel() == null;
-			int rgb = isActive ? theme.headerBg : blink ? theme.accent : theme.tab(i);
-			int color = argb(rgb, interactive);
+			boolean alert = alerting(c, active);
+			// 알림 탭은 밝기와 상관없이 늘 또렷하게 (채팅창이 닫혀 팝업이 흐려져 있어도 눈에 띄게)
+			int color = isActive ? argb(theme.headerBg, interactive)
+					: alert ? Theme.mix(theme.tab(i) | 0xFF000000, theme.accent | 0xFF000000, 0.35f + 0.55f * pulse)
+					: argb(theme.tab(i), interactive);
 			// 노트 라벨처럼 위쪽 모서리만 둥글게, 탭 사이 틈 없이
 			context.fill(tx + 2, y, tx + tw - 2, y + 1, color);
 			context.fill(tx + 1, y + 1, tx + tw - 1, y + 2, color);
 			context.fill(tx, y + 2, tx + tw, y + tabH(), color);
 
 			String label = UiFont.trim(tr, name, tw - 6, tabScale());
-			int textColor = isActive ? theme.text : alert ? (blink ? 0xFFFFFFFF : theme.accent)
+			int textColor = isActive ? theme.text : alert ? 0xFFFFFFFF
 					: c.channel() != null ? Theme.mix(theme.channelColor(c.channel()), theme.mutedText, 0.3f) : theme.mutedText;
 			// 탭 이름은 한 단계 작게, 탭 높이 가운데에
 			UiFont.drawPlain(context, tr, label, tx + 4, y + (tabH() - UiFont.height(tabScale())) / 2 + 1, textColor, tabScale());
@@ -650,6 +748,17 @@ public final class PopupChat {
 			runtime.tabs.add(new Tab(c.name, tx, tx + tw));
 			tx += tw;
 		}
+	}
+
+	/** 안 읽은 메시지가 와서 빛나야 하는 탭인지 (보고 있는 탭과 알림을 끈 대화는 아님) */
+	private static boolean alerting(Conversation c, Conversation active) {
+		return c != active && c.unread > 0 && !c.muted;
+	}
+
+	/** 0 → 1 → 0 을 PULSE_MS 마다 부드럽게 (코사인) */
+	static float pulse(long millis) {
+		double phase = (millis % PULSE_MS) / (double) PULSE_MS;
+		return (float) (0.5 - 0.5 * Math.cos(phase * 2 * Math.PI));
 	}
 
 	/** 탭에는 짧게: 채널은 "#전체", 귓속말은 닉네임 */

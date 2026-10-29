@@ -8,7 +8,7 @@ class SettingsShareTest {
 	@Test
 	void codeRoundTripRestoresThemeAndSizes() {
 		ModConfig cfg = ModConfig.get();
-		cfg.themePreset = "kakao";
+		cfg.themePreset = "messenger";
 		cfg.sizes.textScale = 1.25f;
 		cfg.sizes.cornerRadius = 7;
 		String code = SettingsShare.export();
@@ -21,11 +21,11 @@ class SettingsShareTest {
 		int before = cfg.customThemes.size();
 
 		SettingsShare.Imported imported = SettingsShare.apply(code);
-		assertEquals("카톡풍", imported.themeName());
+		assertEquals("메신저", imported.themeName());
 		assertEquals(before + 1, cfg.customThemes.size());
 		Theme theme = Theme.get();
 		assertTrue(theme.editable(), "가져온 테마는 고칠 수 있는 새 테마");
-		assertEquals(Theme.PRESETS.get("kakao").mineBubble, theme.mineBubble);
+		assertEquals(Theme.PRESETS.get("messenger").mineBubble, theme.mineBubble);
 		assertEquals(1.25f, cfg.sizes.textScale);
 		assertEquals(7, cfg.sizes.cornerRadius);
 	}

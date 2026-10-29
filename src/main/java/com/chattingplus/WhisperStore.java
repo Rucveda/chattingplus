@@ -52,6 +52,10 @@ public final class WhisperStore {
 		public int unread;
 		public long lastTime;
 		public boolean favorite;
+		/** 알림 끄기: 안 읽은 개수는 세지만 소리, 화면 알림, 팝업 탭 빛이 없고 배지는 회색. 메인 창과 팝업이 같이 쓴다 */
+		public boolean muted;
+		/** 이 대화에만 쓰는 배경 그림. null 이면 기본 배경. 채널과 즐겨찾기 대화만 가진다 ({@link ChatBackground#canCustomize}) */
+		public ModConfig.Background background;
 
 		Conversation(String name) {
 			this.name = name;
@@ -109,6 +113,8 @@ public final class WhisperStore {
 				if (list != null) {
 					for (Conversation c : list) {
 						if (c.messages == null) c.messages = new ArrayList<>();
+						if (!ChatBackground.canCustomize(c)) c.background = null;
+						if (c.background != null) c.background.sanitize();
 						conversations.put(key(c.name), c);
 						for (Message m : c.messages) rememberLabel(m);
 					}
@@ -214,14 +220,28 @@ public final class WhisperStore {
 
 	public void toggleFavorite(Conversation c) {
 		c.favorite = !c.favorite;
+		// 즐겨찾기를 풀면 그 대화만의 배경 설정도 지운다
+		if (!ChatBackground.canCustomize(c)) c.background = null;
 		version++;
 		markDirty();
 	}
 
-	/** 안 읽은 귓속말 수 (채널 채팅은 양이 많아서 빼고 센다) */
+	public void toggleMuted(Conversation c) {
+		c.muted = !c.muted;
+		version++;
+		markDirty();
+	}
+
+	/** 대화만의 배경 설정을 바꾼 뒤 (null 이면 기본 배경으로) 저장하게 한다 */
+	public void setBackground(Conversation c, ModConfig.Background background) {
+		c.background = ChatBackground.canCustomize(c) ? background : null;
+		markDirty();
+	}
+
+	/** 안 읽은 귓속말 수 (채널 채팅은 양이 많아서, 알림을 끈 대화는 알리지 않으려고 빼고 센다) */
 	public int totalUnread() {
 		int total = 0;
-		for (Conversation c : conversations.values()) if (c.channel() == null) total += c.unread;
+		for (Conversation c : conversations.values()) if (c.channel() == null && !c.muted) total += c.unread;
 		return total;
 	}
 

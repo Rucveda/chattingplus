@@ -26,7 +26,7 @@ public class UiButton extends ButtonWidget {
 	/** 음수면 보조 버튼: 그릴 때 GUI 배율에 맞는 작은 글자 */
 	private final float textScale;
 	/** 있으면 글자 대신 아이콘을 그린다 (글자는 화면 낭독용으로만) */
-	private final Identifier icon;
+	private Identifier icon;
 
 	protected UiButton(int x, int y, int width, int height, Text message, PressAction onPress, float textScale, Identifier icon) {
 		super(x, y, width, height, message, onPress, DEFAULT_NARRATION_SUPPLIER);
@@ -49,6 +49,11 @@ public class UiButton extends ButtonWidget {
 	private void drawContent(DrawContext context, int color, boolean shadow) {
 		if (icon != null) drawIcon(context, icon, getX(), getY(), width, height, color);
 		else drawLabel(context, this, getMessage(), color, scale(), shadow);
+	}
+
+	/** 아이콘 바꾸기 (켜고 끄는 버튼처럼 상태에 따라 그림이 바뀔 때) */
+	public void setIcon(String name) {
+		this.icon = icon(name);
 	}
 
 	public static Builder create(Text message, PressAction onPress) {

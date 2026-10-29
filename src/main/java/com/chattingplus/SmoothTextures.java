@@ -35,8 +35,13 @@ public final class SmoothTextures {
 
 	/** 이모티콘을 size(GUI 픽셀) 크기로. 실제 화면 픽셀 크기에 맞는 그림을 고른다. */
 	public static void drawEmote(DrawContext context, Emotes.Emote emote, int x, int y, int size) {
+		drawEmote(context, emote, x, y, size, 0xFFFFFFFF);
+	}
+
+	/** color 로 투명도를 줄 수 있다 (흐려진 팝업의 스티커) */
+	public static void drawEmote(DrawContext context, Emotes.Emote emote, int x, int y, int size, int color) {
 		double scale = MinecraftClient.getInstance().getWindow().getScaleFactor();
 		int texture = emote.pickSize((int) Math.ceil(size * scale));
-		context.drawTexture(SmoothTextures::layer, emote.texture(texture), x, y, 0, 0, size, size, texture, texture, texture, texture);
+		context.drawTexture(SmoothTextures::layer, emote.texture(texture), x, y, 0, 0, size, size, texture, texture, texture, texture, color);
 	}
 }

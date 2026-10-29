@@ -6,6 +6,7 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ConfirmScreen;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
+import net.minecraft.client.gui.widget.ClickableWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
@@ -34,6 +35,15 @@ public class WhisperScreen extends Screen {
 	private static final int MIN_SECTION_H = 12;
 
 	private static final int COLOR_STAR = 0xFFFFC83D;
+	/** 창 크기 한도와 오른쪽 아래 크기 조절 손잡이 크기 */
+	private static final int MIN_PANEL_W = 360;
+	private static final int MIN_PANEL_H = 220;
+	private static final int GRIP = 6;
+	/** 목록 스크롤바 폭 */
+	private static final int SCROLLBAR_W = 2;
+	/** 켜고 끄는 스위치 크기 */
+	private static final int SWITCH_W = 20;
+	private static final int SWITCH_H = 10;
 
 	private static final DateTimeFormatter LIST_DATE = DateTimeFormatter.ofPattern("M/d");
 
@@ -48,9 +58,20 @@ public class WhisperScreen extends Screen {
 	private ButtonWidget favoriteButton;
 	private ButtonWidget popupButton;
 	private ButtonWidget deleteButton;
-	private ButtonWidget channelHideButton;
+	/** 채널 대화: 기본 채팅창에도 보일지 */
+	private UiSwitch channelSwitch;
+	/** 이 대화만의 배경 (채널과 즐겨찾기 귓속말만) */
+	private ButtonWidget backgroundButton;
+	/** 이 대화 알림 켜기/끄기 (모든 대화, 팝업과 같이 쓴다) */
+	private UiButton muteButton;
+	/** 머리글 오른쪽 버튼들의 왼쪽 끝 (제목은 여기까지, 채널이면 "채팅창 표시" 글자가 이 왼쪽에) */
+	private int headerLeftEdge;
 	private ConversationView view;
 	private final EmotePicker picker = new EmotePicker();
+	private ButtonWidget stickerButton;
+	/** 스티커 편집 중이면 고르는 창이 열려 있고, 스티커를 끌어 옮기거나 뗄 수 있다 */
+	private final StickerPicker stickerPicker = new StickerPicker();
+	private final StickerLayer stickers = new StickerLayer();
 
 	private Conversation selected;
 	/** 위쪽 channelCount 개는 채널, 그 아래는 귓속말 대화 */
@@ -58,6 +79,12 @@ public class WhisperScreen extends Screen {
 	private int channelCount;
 	private int seenVersion = -1;
 	private double listScroll;
+	/** 끌고 있는 것: 창 크기 조절 손잡이, 목록 스크롤바 */
+	private enum Drag { NONE, RESIZE, SCROLLBAR }
+	private Drag drag = Drag.NONE;
+	/** 끌기 시작할 때의 마우스 위치와 창 크기 / 스크롤 위치 */
+	private double dragStartX, dragStartY, dragStartScroll;
+	private int dragStartW, dragStartH;
 
 	public WhisperScreen() {
 		super(Text.translatable("chattingplus.title"));
@@ -71,8 +98,11 @@ public class WhisperScreen extends Screen {
 	protected void init() {
 		if (view == null) view = new ConversationView(textRenderer);
 		picker.close();
-		int panelW = Math.min(width - 20, 520);
-		int panelH = Math.min(height - 20, 320);
+		stickerPicker.close();
+		// 창 크기: 설정에 저장된 크기를 화면 안에 맞춘다 (가운데 정렬)
+		ModConfig cfg = ModConfig.get();
+		int panelW = Math.min(width - 20, Math.max(MIN_PANEL_W, cfg.mainWidth));
+		int panelH = Math.min(height - 20, Math.max(MIN_PANEL_H, cfg.mainHeight));
 		left = (width - panelW) / 2;
 		top = (height - panelH) / 2;
 		right = left + panelW;
@@ -93,13 +123,15 @@ public class WhisperScreen extends Screen {
 				.dimensions(left + LIST_W - PAD - 16, top + (HEADER_H - 16) / 2, 16, 16).icon("add")
 				.build());
 
-		// 왼쪽 아래: [채팅창 귓속말 숨김] [⚙]
-		addDrawableChild(UiButton.create(hideLabel(), b -> {
-					ModConfig.get().hideInChat = !ModConfig.get().hideInChat;
-					ModConfig.save();
-					b.setMessage(hideLabel());
-				})
-				.dimensions(left + PAD, bottom - FOOTER_H + (FOOTER_H - 16) / 2, LIST_W - PAD * 2 - 18, 16).small()
+		// 왼쪽 아래: 귓속말 표시 (스위치, 켜짐 = 기본 채팅창에도 보임) ... [스티커] [⚙]  (글자는 render 에서 그린다)
+		int hideW = UiFont.width(textRenderer, Text.translatable("chattingplus.whisper.show").getString(), UiFont.small());
+		addDrawableChild(new UiSwitch(left + PAD + hideW + 4, bottom - FOOTER_H + (FOOTER_H - SWITCH_H) / 2, SWITCH_W, SWITCH_H,
+				Text.translatable("chattingplus.whisper.show"), () -> !ModConfig.get().hideInChat, on -> {
+			ModConfig.get().hideInChat = !on;
+			ModConfig.save();
+		}));
+		stickerButton = addDrawableChild(UiButton.create(Text.translatable("chattingplus.sticker"), b -> toggleStickers())
+				.dimensions(left + LIST_W - PAD - 34, bottom - FOOTER_H + (FOOTER_H - 16) / 2, 16, 16).icon("sticker")
 				.build());
 		addDrawableChild(UiButton.create(Text.translatable("chattingplus.settings"), b -> openSettings())
 				.dimensions(left + LIST_W - PAD - 16, bottom - FOOTER_H + (FOOTER_H - 16) / 2, 16, 16).icon("settings")
@@ -121,29 +153,38 @@ public class WhisperScreen extends Screen {
 				.dimensions(right - PAD - 40, inputY, 40, INPUT_H)
 				.build());
 
-		// 머리글 오른쪽: [★] [팝업] [삭제]
+		// 머리글 오른쪽 아이콘 버튼들. 오른쪽부터 [삭제] [팝업] [★] [배경] [알림], 채널이면 그 왼쪽에 채팅창 표시 (스위치).
+		// 대화 종류에 따라 보이는 버튼이 달라서 자리는 updateHeaderButtons 에서 오른쪽부터 차례로 정한다
 		int headerY = top + (HEADER_H - 16) / 2;
 		deleteButton = addDrawableChild(UiButton.create(Text.translatable("chattingplus.delete"), b -> confirmDelete())
-				.dimensions(right - PAD - 34, headerY, 34, 16).small()
+				.dimensions(0, headerY, 16, 16).icon("trash")
 				.build());
 		popupButton = addDrawableChild(UiButton.create(Text.translatable("chattingplus.popup"), b -> openPopup())
-				.dimensions(right - PAD - 34 - 2 - 34, headerY, 34, 16).small()
+				.dimensions(0, headerY, 16, 16).icon("popup")
 				.build());
 		favoriteButton = addDrawableChild(UiButton.create(Text.literal("☆"), b -> toggleFavorite())
-				.dimensions(right - PAD - 34 - 2 - 34 - 2 - 16, headerY, 16, 16)
+				.dimensions(0, headerY, 16, 16)
 				.build());
-		// 채널 대화에서는 ★ 대신 "기본 채팅창에서 숨길지" 버튼
-		channelHideButton = addDrawableChild(UiButton.create(Text.empty(), b -> toggleChannelHide())
-				.dimensions(right - PAD - 34 - 2 - 34 - 2 - 72, headerY, 72, 16).small()
+		backgroundButton = addDrawableChild(UiButton.create(Text.translatable("chattingplus.background.button"), b -> openBackground())
+				.dimensions(0, headerY, 16, 16).icon("image")
 				.build());
+		muteButton = addDrawableChild(UiButton.create(Text.translatable("chattingplus.mute"), b -> toggleMuted())
+				.dimensions(0, headerY, 16, 16).icon("bell")
+				.build());
+		// 채널 대화: 기본 채팅창에도 보일지 (켜짐 = 보임)
+		channelSwitch = addDrawableChild(new UiSwitch(0, top + (HEADER_H - SWITCH_H) / 2, SWITCH_W, SWITCH_H,
+				Text.translatable("chattingplus.channel.show"),
+				() -> selected != null && selected.channel() != null && !selected.channel().settings().hideInChat,
+				on -> {
+					Channel channel = selected == null ? null : selected.channel();
+					if (channel == null) return;
+					channel.settings().hideInChat = !on;
+					ModConfig.save();
+				}));
 
 		refreshList();
 		select(WhisperStore.get().find(lastSelectedName));
 		setInitialFocus(selected != null ? inputField : searchField);
-	}
-
-	private Text hideLabel() {
-		return Text.translatable(ModConfig.get().hideInChat ? "chattingplus.hide.on" : "chattingplus.hide.off");
 	}
 
 	private void openSettings() {
@@ -183,25 +224,27 @@ public class WhisperScreen extends Screen {
 	}
 
 	private void updateHeaderButtons() {
-		if (deleteButton == null) return;
+		if (channelSwitch == null) return;
 		boolean has = selected != null;
 		Channel channel = has ? selected.channel() : null;
 		deleteButton.visible = has;
 		popupButton.visible = has;
 		favoriteButton.visible = has && channel == null;
-		channelHideButton.visible = channel != null;
+		backgroundButton.visible = ChatBackground.canCustomize(selected);
+		muteButton.visible = has;
+		channelSwitch.visible = channel != null;
 		if (favoriteButton.visible) favoriteButton.setMessage(selected.favorite ? Text.literal("★").withColor(COLOR_STAR) : Text.literal("☆"));
-		if (channel != null) {
-			channelHideButton.setMessage(Text.translatable(channel.settings().hideInChat ? "chattingplus.channel.hide.on" : "chattingplus.channel.hide.off"));
-		}
-	}
+		if (has) muteButton.setIcon(selected.muted ? "bell_off" : "bell");
 
-	private void toggleChannelHide() {
-		Channel channel = selected == null ? null : selected.channel();
-		if (channel == null) return;
-		channel.settings().hideInChat = !channel.settings().hideInChat;
-		ModConfig.save();
-		updateHeaderButtons();
+		// 오른쪽 끝부터 보이는 것만 2픽셀 간격으로 붙여 놓는다
+		int x = right - PAD;
+		for (ClickableWidget w : List.of(deleteButton, popupButton, favoriteButton, backgroundButton, muteButton, channelSwitch)) {
+			if (!w.visible) continue;
+			x -= w.getWidth();
+			w.setX(x);
+			x -= w == muteButton && channelSwitch.visible ? 8 : 2;
+		}
+		headerLeftEdge = x;
 	}
 
 	private void toggleFavorite() {
@@ -210,9 +253,49 @@ public class WhisperScreen extends Screen {
 		refreshList();
 	}
 
+	private void toggleMuted() {
+		if (selected == null) return;
+		WhisperStore.get().toggleMuted(selected);
+		updateHeaderButtons();
+	}
+
+	/** 이 대화만의 배경 정하기 (설정 화면을 이 대화 배경만 보이게 연다) */
+	private void openBackground() {
+		if (client == null || !ChatBackground.canCustomize(selected)) return;
+		client.setScreen(new SettingsScreen(this, selected));
+	}
+
 	private void toggleEmotes() {
+		stickerPicker.close();
 		if (picker.isOpen()) picker.close();
 		else picker.openAbove(emoteButton.getX() + emoteButton.getWidth(), emoteButton.getY(), width, height);
+	}
+
+	/** 스티커 편집 켜기/끄기: 켜면 스티커 버튼 위에 고르는 창이 열린다 */
+	private void toggleStickers() {
+		picker.close();
+		if (stickerPicker.isOpen()) stickerPicker.close();
+		else stickerPicker.openAt(stickerButton.getX(), stickerButton.getY() - StickerPicker.HEIGHT - 3, width, height);
+	}
+
+	private boolean editingStickers() {
+		return stickerPicker.isOpen();
+	}
+
+	/** 메인 창 스티커는 화면 어디에나 (핀 없음) */
+	private StickerLayer.Frame stickerFrame() {
+		return new StickerLayer.Frame(width, height, 0, 0, false);
+	}
+
+	/** 새 스티커는 대화 영역 가운데에 (여러 개 붙이면 조금씩 비껴서) */
+	private void addSticker(String source) {
+		List<ModConfig.Sticker> list = ModConfig.get().mainStickers;
+		ModConfig.Sticker sticker = new ModConfig.Sticker(source, 48);
+		int shift = (list.size() % 5) * 12;
+		sticker.x = ((chatLeft() + right) / 2f + shift) / width;
+		sticker.y = ((top + bottom) / 2f - 20 + shift) / height;
+		list.add(sticker);
+		ModConfig.save();
 	}
 
 	private void openPopup() {
@@ -298,8 +381,9 @@ public class WhisperScreen extends Screen {
 
 	@Override
 	public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-		if (keyCode == GLFW.GLFW_KEY_ESCAPE && picker.isOpen()) {
+		if (keyCode == GLFW.GLFW_KEY_ESCAPE && (picker.isOpen() || stickerPicker.isOpen())) {
 			picker.close();
+			stickerPicker.close();
 			return true;
 		}
 		if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
@@ -317,10 +401,18 @@ public class WhisperScreen extends Screen {
 
 	@Override
 	public boolean mouseClicked(double mouseX, double mouseY, int button) {
+		if (editingStickers()) {
+			if (stickerPicker.contains(mouseX, mouseY)) {
+				String source = stickerPicker.click(mouseX, mouseY);
+				if (source != null) addSticker(source);
+				return true;
+			}
+			if (stickers.press(ModConfig.get().mainStickers, stickerFrame(), mouseX, mouseY, button)) return true;
+		}
 		if (picker.isOpen()) {
 			if (picker.contains(mouseX, mouseY)) {
 				Emotes.Emote emote = picker.click(mouseX, mouseY);
-				// 카카오톡 이모티콘처럼 고르면 바로 보낸다
+				// 메신저 이모티콘처럼 고르면 바로 보낸다
 				if (emote != null && selected != null && WhisperSender.send(selected.name, emote.token())) {
 					picker.close();
 					view.resetScroll();
@@ -328,6 +420,14 @@ public class WhisperScreen extends Screen {
 				return true;
 			}
 			if (!emoteButton.isMouseOver(mouseX, mouseY)) picker.close();
+		}
+		if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && onGrip(mouseX, mouseY)) {
+			startDrag(Drag.RESIZE, mouseX, mouseY);
+			return true;
+		}
+		if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && onScrollbar(mouseX, mouseY)) {
+			startDrag(Drag.SCROLLBAR, mouseX, mouseY);
+			return true;
 		}
 		if (super.mouseClicked(mouseX, mouseY, button)) return true;
 		String name = selected != null ? view.nameAt(mouseX, mouseY) : null;
@@ -345,8 +445,66 @@ public class WhisperScreen extends Screen {
 	}
 
 	@Override
+	public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+		if (stickers.dragging()) {
+			stickers.drag(mouseX, mouseY);
+			return true;
+		}
+		if (drag == Drag.RESIZE) {
+			// 창이 가운데 정렬이라 모서리를 끈 만큼의 두 배로 커져야 손잡이가 마우스를 따라온다
+			ModConfig cfg = ModConfig.get();
+			int w = Math.max(MIN_PANEL_W, Math.min(width - 20, dragStartW + (int) Math.round(2 * (mouseX - dragStartX))));
+			int h = Math.max(MIN_PANEL_H, Math.min(height - 20, dragStartH + (int) Math.round(2 * (mouseY - dragStartY))));
+			if (w != right - left || h != bottom - top) {
+				cfg.mainWidth = w;
+				cfg.mainHeight = h;
+				clearAndInit();
+			}
+			return true;
+		}
+		if (drag == Drag.SCROLLBAR) {
+			// 막대를 끈 거리만큼 목록 전체 길이에 비례해 스크롤
+			int track = whisperBottom() - whisperTop();
+			double max = maxListScroll();
+			double perPixel = track <= scrollbarHeight() ? 0 : max / (track - scrollbarHeight());
+			listScroll = MathHelper.clamp(dragStartScroll + (mouseY - dragStartY) * perPixel, 0, max);
+			return true;
+		}
+		return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
+	}
+
+	@Override
+	public boolean mouseReleased(double mouseX, double mouseY, int button) {
+		if (stickers.dragging()) {
+			stickers.release();
+			return true;
+		}
+		if (drag != Drag.NONE) {
+			if (drag == Drag.RESIZE) ModConfig.save();
+			drag = Drag.NONE;
+			return true;
+		}
+		return super.mouseReleased(mouseX, mouseY, button);
+	}
+
+	private void startDrag(Drag mode, double mouseX, double mouseY) {
+		drag = mode;
+		dragStartX = mouseX;
+		dragStartY = mouseY;
+		dragStartW = right - left;
+		dragStartH = bottom - top;
+		dragStartScroll = listScroll;
+	}
+
+	/** 오른쪽 아래 모서리 크기 조절 손잡이 */
+	private boolean onGrip(double x, double y) {
+		return x >= right - GRIP && x < right + 1 && y >= bottom - GRIP && y < bottom + 1;
+	}
+
+	@Override
 	public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
 		if (picker.scroll(mouseX, mouseY, verticalAmount)) return true;
+		if (stickerPicker.scroll(mouseX, mouseY, verticalAmount)) return true;
 		if (inList(mouseX, mouseY)) {
 			listScroll = MathHelper.clamp(listScroll - verticalAmount * itemH(), 0, maxListScroll());
 			return true;
@@ -429,19 +587,57 @@ public class WhisperScreen extends Screen {
 		return i * itemH() + headers * sectionH();
 	}
 
+	// 채널 구역과 "귓속말" 구역 이름은 위에 고정되고, 그 아래 귓속말 상대 목록만 따로 스크롤된다
+
+	/** 귓속말 상대 목록이 스크롤되는 영역 위쪽 (채널과 구역 이름 아래) */
+	private int whisperTop() {
+		return Math.min(listBottom(), listTop() + itemOffset(channelCount));
+	}
+
+	private int whisperBottom() {
+		return listBottom();
+	}
+
+	/** i 번째 항목의 화면 y. 채널은 고정, 귓속말은 스크롤만큼 올라간다 */
+	private int itemY(int i) {
+		return listTop() + itemOffset(i) - (i >= channelCount ? (int) listScroll : 0);
+	}
+
 	private int listIndexAt(double x, double y) {
 		if (!inList(x, y)) return -1;
-		double ly = y - listTop() + listScroll;
+		boolean inWhispers = y >= whisperTop();
 		for (int i = 0; i < visible.size(); i++) {
-			int start = itemOffset(i);
-			if (ly >= start && ly < start + itemH()) return i;
+			if ((i >= channelCount) != inWhispers) continue;
+			int start = itemY(i);
+			if (y >= start && y < start + itemH()) return i;
 		}
 		return -1;
 	}
 
 	private double maxListScroll() {
-		int content = visible.isEmpty() ? 0 : itemOffset(visible.size() - 1) + itemH();
-		return Math.max(0, content - (listBottom() - listTop()));
+		if (!hasDms()) return 0;
+		int content = (visible.size() - channelCount) * itemH();
+		return Math.max(0, content - (whisperBottom() - whisperTop()));
+	}
+
+	/** 스크롤바 막대 길이: 보이는 비율만큼 (너무 짧지 않게) */
+	private int scrollbarHeight() {
+		int track = whisperBottom() - whisperTop();
+		int content = (visible.size() - channelCount) * itemH();
+		return content <= 0 ? track : Math.max(12, track * track / content);
+	}
+
+	private int scrollbarY() {
+		double max = maxListScroll();
+		int track = whisperBottom() - whisperTop();
+		return whisperTop() + (max <= 0 ? 0 : (int) Math.round((track - scrollbarHeight()) * listScroll / max));
+	}
+
+	/** 스크롤바 위 (얇아서 좌우로 조금 넓게 잡는다) */
+	private boolean onScrollbar(double x, double y) {
+		if (maxListScroll() <= 0) return false;
+		int x1 = left + LIST_W;
+		return x >= x1 - SCROLLBAR_W - 4 && x < x1 && y >= whisperTop() && y < whisperBottom();
 	}
 
 	// ---------------------------------------------------------------- 그리기
@@ -454,6 +650,11 @@ public class WhisperScreen extends Screen {
 		int r = ModConfig.get().sizes.cornerRadius;
 		Shapes.fill(context, left, top, right, bottom, theme.windowBg, r);
 		Shapes.fill(context, chatLeft(), top, right, bottom, theme.chatBg, r, false, true, false, true);
+		// 배경 그림은 머리글과 입력줄 사이 대화 영역에만 (모서리에 닿지 않아 각지게)
+		ModConfig.Background bg = ChatBackground.of(selected);
+		if (ChatBackground.enabled(bg, false)) {
+			ChatBackground.draw(context, bg, chatLeft(), top + HEADER_H + 1, right, bottom - FOOTER_H - 1, 0, false, false, false, false, 1f);
+		}
 
 		// 위아래 띠(검색줄, 아래 버튼줄, 머리글, 입력줄)는 바탕보다 살짝 다른 색 + 경계선으로 구역을 나눈다
 		int listBand = band(theme.windowBg, theme);
@@ -481,7 +682,47 @@ public class WhisperScreen extends Screen {
 		super.render(context, mouseX, mouseY, delta);
 		renderList(context, mouseX, mouseY);
 		renderChat(context, mouseX, mouseY);
+		renderSwitchLabels(context);
+		renderGrip(context, mouseX, mouseY);
+		// 스티커는 창 위에 붙인 것처럼 맨 위에. 앞에 그린 글자가 비치지 않게 먼저 내보낸다
+		if (!ModConfig.get().mainStickers.isEmpty()) {
+			context.draw();
+			stickers.render(context, ModConfig.get().mainStickers, stickerFrame(), editingStickers(), mouseX, mouseY, 1f);
+		}
 		picker.render(context, textRenderer, mouseX, mouseY);
+		stickerPicker.render(context, textRenderer, mouseX, mouseY);
+	}
+
+	/** 스위치 왼쪽의 이름: 아래 "귓속말 표시", 채널 머리글 "채팅창 표시" */
+	private void renderSwitchLabels(DrawContext context) {
+		Theme theme = Theme.get();
+		float small = UiFont.small();
+		int textH = UiFont.height(small);
+		UiFont.drawPlain(context, textRenderer, Text.translatable("chattingplus.whisper.show").getString(),
+				left + PAD, bottom - FOOTER_H + (FOOTER_H - textH) / 2, theme.text, small);
+		if (channelSwitch.visible) {
+			String label = Text.translatable("chattingplus.channel.show").getString();
+			UiFont.drawPlain(context, textRenderer, label, channelSwitch.getX() - 4 - UiFont.width(textRenderer, label, small),
+					top + (HEADER_H - textH) / 2, theme.mutedText, small);
+		}
+	}
+
+	/** 오른쪽 아래 크기 조절 손잡이: 팝업과 같은 점 세 줄 (가리키거나 끄는 중이면 진하게) */
+	private void renderGrip(DrawContext context, int mouseX, int mouseY) {
+		Theme theme = Theme.get();
+		int color = drag == Drag.RESIZE || onGrip(mouseX, mouseY) ? theme.text : theme.mutedText;
+		for (int i = 0; i < 3; i++) {
+			int off = 2 + i * 2;
+			context.fill(right - off, bottom - 2, right - off + 1, bottom - 1, color);
+			context.fill(right - 2, bottom - off, right - 1, bottom - off + 1, color);
+		}
+	}
+
+	/** 머리글 제목이 쓸 수 있는 오른쪽 끝 (버튼과 채널의 "채팅창 표시" 글자 앞까지) */
+	private int titleRight() {
+		if (!channelSwitch.visible) return headerLeftEdge;
+		String label = Text.translatable("chattingplus.channel.show").getString();
+		return channelSwitch.getX() - 4 - UiFont.width(textRenderer, label, UiFont.small()) - 4;
 	}
 
 	private void renderList(DrawContext context, int mouseX, int mouseY) {
@@ -497,13 +738,17 @@ public class WhisperScreen extends Screen {
 		float sub = subScale();
 		int hovered = picker.isOpen() ? -1 : listIndexAt(mouseX, mouseY);
 		context.enableScissor(x0, y0, x1, y1);
-		int scrollY = y0 - (int) listScroll;
-		if (channelCount > 0) sectionLabel(context, theme, "chattingplus.list.channels", channelCount, x0, x1, scrollY);
-		if (hasDms()) sectionLabel(context, theme, "chattingplus.list.whispers", visible.size() - channelCount, x0, x1, scrollY + itemOffset(channelCount) - sectionH());
+		if (channelCount > 0) sectionLabel(context, theme, "chattingplus.list.channels", channelCount, x0, x1, y0);
+		if (hasDms()) sectionLabel(context, theme, "chattingplus.list.whispers", visible.size() - channelCount, x0, x1, y0 + itemOffset(channelCount) - sectionH());
+		context.disableScissor();
 
 		for (int i = 0; i < visible.size(); i++) {
-			int y = scrollY + itemOffset(i);
-			if (y + itemH() < y0 || y > y1) continue;
+			// 귓속말 상대는 스크롤 영역 안에서만 보이게 잘라 그린다
+			boolean whisper = i >= channelCount;
+			int clipTop = whisper ? whisperTop() : y0, clipBottom = whisper ? whisperBottom() : y1;
+			int y = itemY(i);
+			if (y + itemH() < clipTop || y > clipBottom) continue;
+			context.enableScissor(x0, clipTop, x1, clipBottom);
 			Conversation c = visible.get(i);
 
 			if (c == selected) {
@@ -536,13 +781,15 @@ public class WhisperScreen extends Screen {
 				UiFont.drawStyled(context, textRenderer, label, nameX, nameY, nameMax, theme.text | 0xFF000000, name);
 			} else {
 				String text = UiFont.trim(textRenderer, c.displayName(), nameMax, name);
-				int nameColor = c.unread > 0 ? theme.accent : isChannel ? theme.channelColor(c.channel()) : theme.text;
+				int nameColor = c.unread > 0 && !c.muted ? theme.accent : isChannel ? theme.channelColor(c.channel()) : theme.text;
 				UiFont.draw(context, textRenderer, text, nameX, nameY, nameColor, name);
 			}
 			UiFont.drawPlain(context, textRenderer, time, x1 - PAD - timeW, nameY + Math.round(8 * name) - subH, theme.mutedText, sub);
 
 			// 둘째 줄: 미리보기 + 오른쪽 끝 안 읽음 배지
-			int badgeW = c.unread > 0 ? drawBadge(context, theme, c.unread, x1 - PAD, subY, sub) : 0;
+			// 알림을 끈 대화는 배지를 회색으로 (개수는 보이되 눈에 띄지 않게)
+			int badgeColor = c.muted ? Theme.mix(theme.windowBg | 0xFF000000, theme.mutedText, 0.75f) : theme.accent | 0xFF000000;
+			int badgeW = c.unread > 0 ? drawBadge(context, theme, c.unread, x1 - PAD, subY, sub, badgeColor) : 0;
 			if (last != null) {
 				String who = last.outgoing ? "나: " : last.sender != null ? last.sender + ": " : "";
 				// 이모티콘만 보낸 메시지는 미리보기에 "(이모티콘)"
@@ -550,15 +797,22 @@ public class WhisperScreen extends Screen {
 				String preview = UiFont.trim(textRenderer, who + body, LIST_W - PAD * 2 - badgeW - 4, sub);
 				UiFont.drawPlain(context, textRenderer, preview, x0 + PAD, subY, theme.mutedText, sub);
 			}
+			context.disableScissor();
 		}
-		context.disableScissor();
+
+		// 귓속말 상대가 다 안 보이면 오른쪽에 얇은 스크롤바 (끌어서 옮길 수 있다)
+		if (maxListScroll() > 0) {
+			int by = scrollbarY();
+			boolean active = drag == Drag.SCROLLBAR || onScrollbar(mouseX, mouseY);
+			context.fill(x1 - SCROLLBAR_W - 1, by, x1 - 1, by + scrollbarHeight(), Theme.withAlpha(theme.text, active ? 0xC0 : 0x60));
+		}
 	}
 
 	/**
 	 * 안 읽음 배지. 숫자 글자(7픽셀 높이)를 기준으로 위아래 여백을 똑같이 두고, 한 자리 수는 정사각형에 가깝게.
 	 * textY 줄(미리보기 줄)과 같은 높이에 숫자가 오도록 그린다. 그린 폭을 돌려준다.
 	 */
-	private int drawBadge(DrawContext context, Theme theme, int unread, int right, int textY, float scale) {
+	private int drawBadge(DrawContext context, Theme theme, int unread, int right, int textY, float scale, int color) {
 		String count = unread > 99 ? "99+" : String.valueOf(unread);
 		int digitH = Math.max(5, Math.round(7 * scale));
 		int textW = UiFont.width(textRenderer, count, scale);
@@ -566,7 +820,7 @@ public class WhisperScreen extends Screen {
 		int w = Math.max(h, textW + 6);
 		int top = textY - 2;
 		int left = right - w;
-		UiButton.fillRounded(context, left, top, right, top + h, theme.accent | 0xFF000000);
+		UiButton.fillRounded(context, left, top, right, top + h, color);
 		UiFont.drawPlain(context, textRenderer, count, left + (w - textW + 1) / 2, textY, 0xFFFFFFFF, scale);
 		return w;
 	}
@@ -593,7 +847,7 @@ public class WhisperScreen extends Screen {
 		}
 
 		boolean isChannel = selected.channel() != null;
-		int nameMax = (isChannel ? channelHideButton : favoriteButton).getX() - 4 - x0;
+		int nameMax = titleRight() - 4 - x0;
 		float title = titleScale();
 		int titleY = top + (HEADER_H - UiFont.height(title)) / 2;
 		Text label = isChannel ? null : WhisperStore.get().label(selected.name);

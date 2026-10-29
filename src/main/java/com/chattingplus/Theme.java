@@ -7,7 +7,7 @@ import java.util.Map;
 
 /**
  * 모드 창과 팝업의 색. 색은 ARGB.
- * 미리 만든 테마(다크/핑크/카톡풍)는 바꿀 수 없고, 사용자가 만든 테마(id 가 custom_ 으로 시작)는 바꿀 수 있다.
+ * 미리 만든 테마(다크/핑크/메신저/DM)는 바꿀 수 없고, 사용자가 만든 테마(id 가 custom_ 으로 시작)는 바꿀 수 있다.
  * 글자 크기나 여백 같은 크기 값은 테마와 상관없이 {@link ModConfig.Sizes} 에 있다.
  */
 public class Theme {
@@ -138,22 +138,40 @@ public class Theme {
 		pink.vanillaWidgets = false;
 		add("pink", "핑크", pink);
 
-		Theme kakao = new Theme();
-		kakao.windowBg = 0xF0F7F8FA;
-		kakao.chatBg = 0xF0B2C7D9;
-		kakao.headerBg = 0xFFA4B9CC;
-		kakao.divider = 0xFF9DB0C2;
-		kakao.text = 0xFF1E1E1E;
-		kakao.mutedText = 0xFF5B6B7A;
-		kakao.accent = 0xFFFF5A5A;
-		kakao.selectAccent = 0xFF3D7BD9;
-		kakao.mineBubble = 0xFFFEE500;
-		kakao.mineText = 0xFF1A1A1A;
-		kakao.theirsBubble = 0xFFFFFFFF;
-		kakao.theirsText = 0xFF1A1A1A;
-		kakao.textShadow = false;
-		kakao.vanillaWidgets = false;
-		add("kakao", "카톡풍", kakao);
+		Theme messenger = new Theme();
+		messenger.windowBg = 0xF0F7F8FA;
+		messenger.chatBg = 0xF0B2C7D9;
+		messenger.headerBg = 0xFFA4B9CC;
+		messenger.divider = 0xFF9DB0C2;
+		messenger.text = 0xFF1E1E1E;
+		messenger.mutedText = 0xFF5B6B7A;
+		messenger.accent = 0xFFFF5A5A;
+		messenger.selectAccent = 0xFF3D7BD9;
+		messenger.mineBubble = 0xFFFEE500;
+		messenger.mineText = 0xFF1A1A1A;
+		messenger.theirsBubble = 0xFFFFFFFF;
+		messenger.theirsText = 0xFF1A1A1A;
+		messenger.textShadow = false;
+		messenger.vanillaWidgets = false;
+		add("messenger", "메신저", messenger);
+
+		// 검은 바탕에 파란 내 말풍선, 짙은 회색 상대 말풍선
+		Theme dm = new Theme();
+		dm.windowBg = 0xF2000000;
+		dm.chatBg = 0xF2000000;
+		dm.headerBg = 0xFF121212;
+		dm.divider = 0xFF262626;
+		dm.text = 0xFFF5F5F5;
+		dm.mutedText = 0xFFA8A8A8;
+		dm.accent = 0xFFFF3040;
+		dm.selectAccent = 0xFF0095F6;
+		dm.mineBubble = 0xFF3797F0;
+		dm.mineText = 0xFFFFFFFF;
+		dm.theirsBubble = 0xFF262626;
+		dm.theirsText = 0xFFF5F5F5;
+		dm.textShadow = false;
+		dm.vanillaWidgets = false;
+		add("dm", "DM", dm);
 	}
 
 	private static void add(String id, String name, Theme theme) {

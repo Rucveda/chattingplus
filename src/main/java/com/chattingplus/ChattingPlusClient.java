@@ -105,7 +105,9 @@ public class ChattingPlusClient implements ClientModInitializer {
 		WhisperStore.get().add(whisper, !viewing);
 		WhisperSender.onWhisper(whisper);
 
-		if (!whisper.outgoing()) {
+		// 알림을 끈 대화는 기록만 하고 소리나 화면 알림은 내지 않는다
+		WhisperStore.Conversation conversation = WhisperStore.get().find(whisper.partner());
+		if (!whisper.outgoing() && (conversation == null || !conversation.muted)) {
 			if (!viewing) UnreadHud.notifyIncoming(whisper);
 			if (ModConfig.get().playSound && !inScreen) {
 				client.getSoundManager().play(PositionedSoundInstance.master(SoundEvents.BLOCK_NOTE_BLOCK_BELL, 1.6f));

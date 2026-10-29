@@ -120,9 +120,20 @@ public class SettingsScreen extends Screen {
 	private List<Option> dropdownOptions;
 	private final ColorPicker colorPicker = new ColorPicker();
 
+	/** 대화 하나의 배경만 정하는 화면이면 그 대화 (채널이나 즐겨찾기 귓속말). 전체 설정이면 null */
+	private final Conversation target;
+	private ButtonWidget resetBackground;
+
 	public SettingsScreen(Screen parent) {
-		super(Text.translatable("chattingplus.settings"));
+		this(parent, null);
+	}
+
+	/** target 이 있으면 그 대화만의 배경을 정하는 화면 (배경 카드만 있고, 미리보기는 그 대화) */
+	public SettingsScreen(Screen parent, Conversation target) {
+		super(target == null ? Text.translatable("chattingplus.settings")
+				: Text.translatable("chattingplus.background.title", target.displayName()));
 		this.parent = parent;
+		this.target = target;
 	}
 
 	// ---------------------------------------------------------------- 영역
@@ -164,7 +175,7 @@ public class SettingsScreen extends Screen {
 	@Override
 	protected void init() {
 		if (preview == null) preview = new ConversationView(textRenderer);
-		if (sample == null) sample = sampleConversation();
+		if (sample == null) sample = target != null ? target : sampleConversation();
 		int panelW = Math.min(width - 12, 480);
 		int panelH = Math.min(height - 12, 300);
 		left = (width - panelW) / 2;
@@ -173,6 +184,7 @@ public class SettingsScreen extends Screen {
 		bottom = top + panelH;
 
 		placed.clear();
+		resetBackground = null;
 		labels.clear();
 		swatches.clear();
 		rules.clear();
@@ -185,10 +197,15 @@ public class SettingsScreen extends Screen {
 		// 카드 안쪽 내용의 왼쪽과 폭
 		int x = cardLeft() + CARD_PAD, w = cardRight() - CARD_PAD - x;
 		int y = 0;
-		y = card("chattingplus.settings.section.theme", y, cy -> buildTheme(x, w, cy));
-		y = card("chattingplus.settings.section.sizes", y + CARD_GAP, cy -> buildSizes(x, w, cy));
-		y = card("chattingplus.settings.section.font", y + CARD_GAP, cy -> buildFont(x, w, cy));
-		y = card("chattingplus.settings.section.share", y + CARD_GAP, cy -> buildShare(x, w, cy));
+		if (target != null) {
+			y = card("chattingplus.settings.section.background", y, cy -> buildBackground(x, w, cy));
+		} else {
+			y = card("chattingplus.settings.section.theme", y, cy -> buildTheme(x, w, cy));
+			y = card("chattingplus.settings.section.sizes", y + CARD_GAP, cy -> buildSizes(x, w, cy));
+			y = card("chattingplus.settings.section.font", y + CARD_GAP, cy -> buildFont(x, w, cy));
+			y = card("chattingplus.settings.section.background", y + CARD_GAP, cy -> buildBackground(x, w, cy));
+			y = card("chattingplus.settings.section.share", y + CARD_GAP, cy -> buildShare(x, w, cy));
+		}
 		contentHeight = y + 2;
 
 		ButtonWidget done = UiButton.create(Text.translatable("gui.done"), b -> close())
@@ -290,7 +307,6 @@ public class SettingsScreen extends Screen {
 		return y;
 	}
 
-	/** 크기: 슬라이더 5개 */
 	/** 묶음 이름 줄: "이름 ───" (작은 글자 + 옅은 선). 다음 줄의 y 를 돌려준다 */
 	private int groupHeading(String key, int x, int w, int y) {
 		float small = UiFont.small();
@@ -330,8 +346,7 @@ public class SettingsScreen extends Screen {
 		return y + 16;
 	}
 
-	/** 글꼴: [글꼴 목록 ▾] / [폴더 열기] [새로고침] / 안내 */
-	/** 공유: [설정 코드 복사] [코드 붙여넣기] / 안내 */
+	/** 공유: [설정 코드 복사] [코드 붙여넣기] */
 	private int buildShare(int x, int w, int y) {
 		int half = (w - 2) / 2;
 		place(UiButton.create(Text.translatable("chattingplus.settings.share.copy"), b -> {
@@ -350,7 +365,7 @@ public class SettingsScreen extends Screen {
 			}
 		}).dimensions(x + half + 2, 0, half, 16).build(), y);
 		y += STEP;
-		return hint("chattingplus.settings.share.hint", x, w, y);
+		return y - 2;
 	}
 
 	private void toast(Text message) {
@@ -358,6 +373,94 @@ public class SettingsScreen extends Screen {
 		SystemToast.add(client.getToastManager(), SystemToast.Type.PERIODIC_NOTIFICATION, Text.translatable("chattingplus.settings"), message);
 	}
 
+	/**
+	 * 배경 그림: [그림 목록 ▾] / [폴더 열기] [새로고침] / 진하기·크기·위치.
+	 * 전체 설정이면 아래에 [메인 창] [팝업], 대화 하나의 배경이면 [기본 설정 따르기]
+	 */
+	private int buildBackground(int x, int w, int y) {
+		ModConfig cfg = ModConfig.get();
+		ModConfig.Background bg = background();
+		place(UiButton.create(Text.literal(backgroundName() + "  ▾"), b -> toggleDropdown(b, backgroundOptions()))
+				.dimensions(x, 0, w, 16)
+				.build(), y);
+		y += STEP;
+		int half = (w - 2) / 2;
+		place(UiButton.create(Text.translatable("chattingplus.settings.background.folder"), b -> ChatBackground.openFolder())
+				.dimensions(x, 0, half, 14).small()
+				.build(), y);
+		place(UiButton.create(Text.translatable("chattingplus.settings.background.reload"), b -> {
+					ChatBackground.reload();
+					toast(Text.translatable("chattingplus.settings.background.loaded", ChatBackground.files().size()));
+					clearAndInit();
+				})
+				.dimensions(x + half + 2, 0, half, 14).small()
+				.build(), y);
+		y += 18;
+		backgroundSlider(x, y, w, "background.opacity", 10, 100, bg.opacity, (b, v) -> b.opacity = v);
+		backgroundSlider(x, y += STEP, w, "background.zoom", 30, 300, bg.zoom, (b, v) -> b.zoom = v);
+		backgroundSlider(x, y += STEP, w, "background.x", 0, 100, bg.x, (b, v) -> b.x = v);
+		backgroundSlider(x, y += STEP, w, "background.y", 0, 100, bg.y, (b, v) -> b.y = v);
+		y += STEP;
+		if (target != null) {
+			// 대화 하나의 배경: 따로 정한 게 있으면 지우고 기본 배경으로 돌아가는 버튼
+			// (눌러지는지는 그릴 때마다 맞춘다: 슬라이더를 처음 움직이면 그때 따로 정한 배경이 생긴다)
+			resetBackground = place(UiButton.create(Text.translatable("chattingplus.background.reset"), b -> {
+				WhisperStore.get().setBackground(target, null);
+				clearAndInit();
+			}).dimensions(x, 0, w, 14).small().build(), y);
+			y += 18;
+			return y - 2;
+		}
+		place(UiButton.create(backgroundToggle("main", cfg.backgroundMain), b -> {
+			cfg.backgroundMain = !cfg.backgroundMain;
+			ModConfig.save();
+			b.setMessage(backgroundToggle("main", cfg.backgroundMain));
+		}).dimensions(x, 0, half, 14).small().build(), y);
+		place(UiButton.create(backgroundToggle("popup", cfg.backgroundPopup), b -> {
+			cfg.backgroundPopup = !cfg.backgroundPopup;
+			ModConfig.save();
+			b.setMessage(backgroundToggle("popup", cfg.backgroundPopup));
+		}).dimensions(x + half + 2, 0, half, 14).small().build(), y);
+		y += 18;
+		return y - 2;
+	}
+
+	/** 지금 고치는 배경: 대화 하나의 화면이면 그 대화에 쓰는 배경(아직 따로 없으면 기본 배경), 아니면 기본 배경 */
+	private ModConfig.Background background() {
+		return target != null ? ChatBackground.of(target) : ModConfig.get().background;
+	}
+
+	/**
+	 * 배경 설정을 바꾼다. 대화 하나의 화면에서 처음 바꿀 때는 기본 배경을 복사해 그 대화만의 배경을 만든다
+	 * (그래서 기본 배경은 그대로 남는다)
+	 */
+	private void editBackground(java.util.function.Consumer<ModConfig.Background> change) {
+		if (target == null) {
+			change.accept(ModConfig.get().background);
+			ModConfig.save();
+			return;
+		}
+		ModConfig.Background own = target.background != null ? target.background : ModConfig.get().background.copy();
+		change.accept(own);
+		WhisperStore.get().setBackground(target, own);
+	}
+
+	private void backgroundSlider(int x, int y, int w, String key, int min, int max, int current, ObjIntConsumer<ModConfig.Background> set) {
+		place(new ValueSlider(x, 0, w, Text.translatable("chattingplus.settings." + key), min, max, 5, current,
+				v -> editBackground(b -> set.accept(b, (int) v)), v -> (int) v + "%"), y);
+	}
+
+	private String backgroundName() {
+		String name = background().image;
+		return name.isEmpty() ? Text.translatable("chattingplus.settings.background.none").getString() : name;
+	}
+
+	private static Text backgroundToggle(String where, boolean on) {
+		return Text.translatable("chattingplus.settings.background." + where,
+				Text.translatable(on ? "chattingplus.settings.on" : "chattingplus.settings.off"));
+	}
+
+	/** 글꼴: [글꼴 목록 ▾] / [폴더 열기] [새로고침] / 안내 */
 	private int buildFont(int x, int w, int y) {
 		place(UiButton.create(Text.literal(UiFont.nameOf(ModConfig.get().font) + "  ▾"), b -> toggleDropdown(b, fontOptions()))
 				.dimensions(x, 0, w, 16)
@@ -445,6 +548,21 @@ public class SettingsScreen extends Screen {
 			}));
 		}
 		return options;
+	}
+
+	private List<Option> backgroundOptions() {
+		List<Option> options = new ArrayList<>();
+		String current = background().image;
+		options.add(new Option(Text.translatable("chattingplus.settings.background.none").getString(), current.isEmpty(), () -> pickBackground("")));
+		for (String file : ChatBackground.files()) {
+			options.add(new Option(file, file.equals(current), () -> pickBackground(file)));
+		}
+		return options;
+	}
+
+	private void pickBackground(String file) {
+		editBackground(b -> b.image = file);
+		clearAndInit();
 	}
 
 	private void toggleDropdown(ButtonWidget anchor, List<Option> options) {
@@ -612,6 +730,7 @@ public class SettingsScreen extends Screen {
 		int mx = overlay ? -1 : mouseX, my = overlay ? -1 : mouseY;
 		context.enableScissor(left, viewTop(), viewRight() + 4, viewBottom());
 		for (Card card : cards) renderCard(context, theme, card);
+		if (resetBackground != null) resetBackground.active = target != null && target.background != null;
 		int ruleColor = Theme.mix(theme.windowBg | 0xFF000000, theme.text, 0.15f);
 		for (Rule rule : rules) {
 			int ry = screenY(rule.baseY);
@@ -706,10 +825,13 @@ public class SettingsScreen extends Screen {
 		int y0 = viewTop(), y1 = bottom - PAD - 16 - 6;
 		if (x1 - x0 < 80) return;
 		context.fill(x0, y0, x1, y1, theme.chatBg);
+		// 미리보기에는 메인 창/팝업 켜고 끄기와 상관없이 고른 그림을 보여준다
+		ModConfig.Background bg = background();
+		if (!bg.image.isEmpty()) ChatBackground.draw(context, bg, x0, y0 + 19, x1, y1, 0, false, false, false, false, 1f);
 		context.fill(x0, y0, x1, y0 + 18, theme.headerBg);
 		context.fill(x0, y0 + 18, x1, y0 + 19, theme.divider);
 		context.drawBorder(x0 - 1, y0 - 1, x1 - x0 + 2, y1 - y0 + 2, theme.divider);
-		UiFont.draw(context, textRenderer, sample.name, x0 + 6, y0 + 5, theme.text);
+		UiFont.draw(context, textRenderer, sample.displayName(), x0 + 6, y0 + 5, theme.text);
 		preview.render(context, sample, x0 + 6, y0 + 22, x1 - 10, y1 - 4);
 	}
 
