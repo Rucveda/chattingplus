@@ -618,7 +618,7 @@ public class SettingsScreen extends Screen {
 			context.fill(rule.x0, ry, rule.x1, ry + 1, ruleColor);
 		}
 		for (Label label : labels) {
-			drawOrdered(context, label.text, label.x, screenY(label.baseY), roleColor(theme, label.role), label.scale);
+			UiFont.drawText(context, textRenderer, label.text, label.x, screenY(label.baseY), roleColor(theme, label.role), label.scale, false);
 		}
 		Swatch hoveredSwatch = overlay ? null : swatchAt(mouseX, mouseY);
 		for (Swatch s : swatches) renderSwatch(context, theme, s, s == hoveredSwatch);
@@ -640,17 +640,6 @@ public class SettingsScreen extends Screen {
 		colorPicker.render(context, textRenderer);
 	}
 
-	private void drawOrdered(DrawContext context, OrderedText text, int x, int y, int color, float scale) {
-		if (scale == 1f) {
-			context.drawText(textRenderer, text, x, y, color, false);
-			return;
-		}
-		context.getMatrices().push();
-		context.getMatrices().translate(x, y, 0);
-		context.getMatrices().scale(scale, scale, 1);
-		context.drawText(textRenderer, text, 0, 0, color, false);
-		context.getMatrices().pop();
-	}
 
 	/** 구역 카드: 바탕보다 살짝 다른 색의 둥근 판 + 왼쪽 강조 막대가 붙은 구역 이름 */
 	private void renderCard(DrawContext context, Theme theme, Card card) {

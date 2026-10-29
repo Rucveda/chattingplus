@@ -1,0 +1,56 @@
+# Chatting Plus
+
+귓속말과 전체·지역·마을 채팅을 메신저처럼 모아 보여주는 마인크래프트 클라이언트 모드입니다.
+서버 쪽 설치 없이, 채팅창에 올라오는 줄을 읽어서 동작합니다.
+
+- 마인크래프트 1.21.4 / Fabric Loader 0.16 이상 / Fabric API 필요
+- Mod Menu 가 있으면 모드 목록에서 설정 화면을 열 수 있습니다 (없어도 동작)
+
+## 기능
+
+- **대화창 (U 키)**: 귓속말 상대별 1:1 대화방과 전체·지역·마을 채널을 한 창에서. 검색, 즐겨찾기, 안 읽음 표시
+- **보내기**: 입력하면 귓속말(`/귓 닉네임 내용`)이나 채널 명령어(`/ㅈ`, `/ㅇ`, `/ㅁ`)로 바꿔 보냅니다
+- **팝업**: 대화를 게임 화면 위 작은 창으로 띄우기. 여러 대화를 탭으로, 탭을 끌어 새 창으로 분리하거나 합치기. 채팅(T)을 열면 옮기기, 크기 조절, 답장
+- **이름 누르기**: 채널 채팅의 말풍선 위 이름을 누르면 그 사람과의 귓속말로
+- **등급·닉네임 색**: 서버가 보내는 등급 아이콘, 칭호, 닉네임 색을 그대로 보여줍니다
+- **이모티콘**: `:웃음:` 같은 글자로 오가고, 같은 모드를 쓰는 사람에게는 그림으로 보입니다
+- **테마**: 다크·핑크·카톡풍 기본 테마, 직접 만드는 테마(색 고르는 창), 버튼 모양, 영역별 글자 크기, 모서리 둥글기, 사용자 글꼴(.ttf/.otf)
+- **설정 공유**: 테마와 크기 설정을 코드 하나로 복사해 다른 사람에게 줄 수 있습니다
+- 기록은 서버별로 `config/chattingplus/history/` 에 저장됩니다
+
+## 설정 파일
+
+대부분은 게임 안 설정 화면(대화창 왼쪽 아래 톱니바퀴)에서 바꿉니다.
+서버에 맞춰야 하는 값은 `config/chattingplus.json` 에서 직접 고칩니다.
+
+| 항목 | 기본값 | 설명 |
+|---|---|---|
+| `commandPrefix` | `귓` | 귓속말 명령어 (슬래시 제외) |
+| `whisperPattern` | | 귓속말 줄을 알아보는 정규식. 이름 그룹 `from`, `to`, `dir`, `msg` 필요 |
+| `sentTag` | `보냄` | `dir` 이 이 값이면 내가 보낸 귓속말 |
+| `channels.*.command` | `ㅈ` / `ㅇ` / `ㅁ` | 채널 채팅 명령어 |
+| `channels.*.marker` | | 서버가 채널 줄 앞에 붙이는 아이콘 문자 |
+| `maxMessagesPerConversation` | `1000` | 귓속말 상대 한 명당 보관하는 메시지 수 |
+| `maxMessagesPerChannel` | `500` | 채널 하나당 보관하는 메시지 수 |
+| `debugLog` | `false` | 켜면 인식한 줄과 인식하지 못한 귓속말 후보를 `latest.log` 에 남깁니다 |
+| `checkUpdates` | `true` | 서버에 처음 들어갈 때 [GitHub Releases](https://github.com/rucveda/chattingplus/releases) 에서 새 버전을 확인해 채팅창에 알려줍니다. 자동으로 내려받지는 않습니다 |
+
+## 빌드
+
+```
+./gradlew build
+```
+
+결과물은 `build/libs/` 에 생깁니다. JDK 21 이 필요하며, 없으면 Gradle 이 자동으로 내려받습니다.
+
+- 이모티콘·아이콘 그림 다시 만들기: `tools/BuildFlatPack.java` (jsvg 필요, 파일 안 설명 참고)
+- 모드 아이콘 다시 만들기: `java tools/BuildIcon.java .`
+
+## 라이선스
+
+코드는 MIT 라이선스입니다 ([LICENSE](LICENSE)).
+
+함께 들어 있는 그림은 각자의 라이선스를 따릅니다.
+
+- 이모티콘: [Twemoji](https://github.com/jdecked/twemoji) — CC-BY 4.0 (SVG 를 PNG 로 변환)
+- 버튼 아이콘: [Google Material Symbols](https://github.com/google/material-design-icons) — Apache License 2.0

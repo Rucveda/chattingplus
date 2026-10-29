@@ -6,9 +6,11 @@ import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.resource.ResourcePackManager;
 import net.minecraft.text.MutableText;
+import net.minecraft.text.OrderedText;
 import net.minecraft.text.Style;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.Language;
 import net.minecraft.util.Util;
 
 import java.io.IOException;
@@ -129,16 +131,13 @@ public final class UiFont {
 	 * 폭이 넘치면 자른다. 그린 폭을 돌려준다.
 	 */
 	public static int drawStyled(DrawContext context, TextRenderer tr, Text label, int x, int y, int maxWidth, int color, float scale) {
-		net.minecraft.text.OrderedText line = net.minecraft.util.Language.getInstance().reorder(tr.trimToWidth(label, (int) (maxWidth / scale)));
-		context.getMatrices().push();
-		context.getMatrices().translate(x, y, 0);
-		context.getMatrices().scale(scale, scale, 1);
-		context.drawText(tr, line, 0, 0, color, false);
-		context.getMatrices().pop();
+		OrderedText line = Language.getInstance().reorder(tr.trimToWidth(label, (int) (maxWidth / scale)));
+		drawText(context, tr, line, x, y, color, scale, false);
 		return Math.round(tr.getWidth(line) * scale);
 	}
 
-	public static void drawText(DrawContext context, TextRenderer tr, Text text, int x, int y, int color, float scale, boolean shadow) {
+	/** 줄바꿈해 둔 한 줄(OrderedText)을 배율에 맞춰 그린다. 모든 배율 그리기는 여기로 모인다. */
+	public static void drawText(DrawContext context, TextRenderer tr, OrderedText text, int x, int y, int color, float scale, boolean shadow) {
 		if (scale == 1f) {
 			context.drawText(tr, text, x, y, color, shadow);
 			return;
@@ -148,6 +147,10 @@ public final class UiFont {
 		context.getMatrices().scale(scale, scale, 1);
 		context.drawText(tr, text, 0, 0, color, shadow);
 		context.getMatrices().pop();
+	}
+
+	public static void drawText(DrawContext context, TextRenderer tr, Text text, int x, int y, int color, float scale, boolean shadow) {
+		drawText(context, tr, text.asOrderedText(), x, y, color, scale, shadow);
 	}
 
 	// ---------------------------------------------------------------- 사용자 글꼴

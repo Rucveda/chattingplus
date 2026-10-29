@@ -4,7 +4,6 @@ import com.chattingplus.WhisperStore.Conversation;
 import com.chattingplus.WhisperStore.Message;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.text.OrderedText;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.MathHelper;
@@ -196,7 +195,7 @@ final class ConversationView {
 			// 서버 안내: 가운데에 작은 회색 글자
 			for (OrderedText line : row.lines) {
 				int w = Math.round(textRenderer.getWidth(line) * meta);
-				drawScaled(context, line, cx - w / 2, y, meta, theme.mutedText);
+				UiFont.drawText(context, textRenderer, line, cx - w / 2, y, theme.mutedText, meta, false);
 				y += noteLineHeight();
 			}
 			return;
@@ -252,7 +251,7 @@ final class ConversationView {
 		int textColor = row.outgoing ? theme.mineText : theme.theirsText;
 		int ty = y + pad;
 		for (OrderedText line : row.lines) {
-			drawScaled(context, line, bx + pad, ty, scale, textColor);
+			UiFont.drawText(context, textRenderer, line, bx + pad, ty, textColor, scale, false);
 			ty += lineH;
 		}
 
@@ -260,18 +259,6 @@ final class ConversationView {
 		UiFont.drawPlain(context, textRenderer, row.time, timeX, y + bh - metaH, theme.mutedText, meta);
 	}
 
-	private void drawScaled(DrawContext context, OrderedText line, int x, int y, float scale, int color) {
-		if (scale == 1f) {
-			context.drawText(textRenderer, line, x, y, color, false);
-			return;
-		}
-		MatrixStack matrices = context.getMatrices();
-		matrices.push();
-		matrices.translate(x, y, 0);
-		matrices.scale(scale, scale, 1);
-		context.drawText(textRenderer, line, 0, 0, color, false);
-		matrices.pop();
-	}
 
 	/** 줄바꿈은 매 프레임 계산하지 않고 대화, 메시지 수, 폭, 크기/글꼴이 바뀔 때만 다시 한다 */
 	private void layout(Conversation c, int areaWidth) {

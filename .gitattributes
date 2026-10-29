@@ -1,0 +1,5 @@
+# 줄바꿈을 LF 로 통일 (Windows 배치 파일만 CRLF)
+* text=auto eol=lf
+*.bat text eol=crlf
+*.png binary
+*.jar binary

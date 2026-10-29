@@ -3,7 +3,15 @@
 	"id": "chattingplus",
 	"version": "${version}",
 	"name": "Chatting Plus",
-	"description": "귓속말을 메신저처럼 1:1 대화창으로 모아 보여주는 클라이언트 모드",
+	"description": "귓속말과 전체·지역·마을 채팅을 메신저처럼 1:1 대화창과 팝업으로 모아 보여주는 클라이언트 모드. 이모티콘: Twemoji (CC-BY 4.0), 아이콘: Material Symbols (Apache 2.0).",
+	"authors": ["백령"],
+	"contact": {
+		"homepage": "https://github.com/rucveda/chattingplus",
+		"sources": "https://github.com/rucveda/chattingplus",
+		"issues": "https://github.com/rucveda/chattingplus/issues"
+	},
+	"license": "MIT",
+	"icon": "assets/chattingplus/icon.png",
 	"environment": "client",
 	"entrypoints": {
 		"client": ["com.chattingplus.ChattingPlusClient"],

@@ -23,12 +23,37 @@ dependencies {
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 	// 설정 버튼 연결용. 없어도 모드는 동작한다.
 	modCompileOnly "com.terraformersmc:modmenu:13.0.3"
+
+	testImplementation "org.junit.jupiter:junit-jupiter:5.11.4"
+	testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+}
+
+test {
+	useJUnitPlatform()
+	// 테스트 중에는 설정 파일을 읽고 쓰지 않는다
+	systemProperty "chattingplus.test", "true"
+	// 마인크래프트 로그 설정이 실행 폴더에 logs/ 를 만드므로 build 아래에서 실행
+	workingDir = file("build/test-run")
+	doFirst { workingDir.mkdirs() }
+}
+
+jar {
+	// 모드 파일 안에 라이선스를 함께 넣는다
+	from("LICENSE") {
+		rename { "LICENSE_${project.archives_base_name}" }
+	}
 }
 
 processResources {
 	inputs.property "version", project.version
 	filesMatching("fabric.mod.json") {
 		expand "version": inputs.properties.version
+	}
+	// 한국어 전용 모드. 게임 언어가 한국어가 아니면 마인크래프트는 en_us 만 읽으므로,
+	// 같은 내용을 en_us 로도 넣어 버튼 등에 번역 키(chattingplus.send 같은)가 그대로 보이지 않게 한다.
+	from("src/main/resources/assets/chattingplus/lang/ko_kr.json") {
+		into "assets/chattingplus/lang"
+		rename { "en_us.json" }
 	}
 }
 
