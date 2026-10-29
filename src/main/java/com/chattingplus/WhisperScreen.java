@@ -790,7 +790,8 @@ public class WhisperScreen extends Screen {
 			// 알림을 끈 대화는 배지를 회색으로 (개수는 보이되 눈에 띄지 않게)
 			int badgeColor = c.muted ? Theme.mix(theme.windowBg | 0xFF000000, theme.mutedText, 0.75f) : theme.accent | 0xFF000000;
 			int badgeW = c.unread > 0 ? drawBadge(context, theme, c.unread, x1 - PAD, subY, sub, badgeColor) : 0;
-			if (last != null) {
+			// 시스템 탭은 서버 아이콘 글자 때문에 미리보기가 깨져 보여서 넣지 않는다
+			if (last != null && c.channel() != Channel.SYSTEM) {
 				String who = last.outgoing ? "나: " : last.sender != null ? last.sender + ": " : "";
 				// 이모티콘만 보낸 메시지는 미리보기에 "(이모티콘)"
 				String body = Emotes.stickers(last.text) != null ? Text.translatable("chattingplus.emote.preview").getString() : last.text;

@@ -1,5 +1,7 @@
 {
 	"key.chattingplus.open": "귓속말 창 열기",
+	"key.chattingplus.popup": "팝업 입력",
+	"chattingplus.popup.none": "띄워 둔 팝업이 없어요. U 로 대화창을 열고 팝업 버튼을 눌러 주세요.",
 	"category.chattingplus": "Chatting Plus",
 	"chattingplus.title": "귓속말",
 	"chattingplus.search": "닉네임 검색 / 새 대화",

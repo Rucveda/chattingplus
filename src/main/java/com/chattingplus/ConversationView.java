@@ -42,7 +42,7 @@ final class ConversationView {
 	 * stickers: 이모티콘으로만 된 메시지면 그 이모티콘들
 	 */
 	private record Row(List<OrderedText> lines, int width, int height, boolean outgoing, boolean system,
-					   String time, String day, String sender, Text label, List<Emotes.Emote> stickers) {}
+					   String time, String day, String sender, Text label, List<Emotes.Emote> stickers, boolean log) {}
 
 	/** 말풍선 위 이름이 그려진 자리. 누르면 그 사람과의 귓속말로 넘어간다 */
 	private record NameHit(int x0, int y0, int x1, int y1, String name) {
@@ -191,6 +191,19 @@ final class ConversationView {
 			y += dayHeight();
 		}
 
+		if (row.log) {
+			// 시스템 탭: 말풍선 없이 서버가 보낸 모양(색, 아이콘) 그대로 왼쪽부터, 시간은 오른쪽 끝에
+			float scale = bubbleScale();
+			int lineH = lineHeight();
+			int timeW = UiFont.width(textRenderer, row.time, meta);
+			UiFont.drawPlain(context, textRenderer, row.time, x1 - timeW, y + lineH - metaH - 1, theme.mutedText, meta);
+			for (OrderedText line : row.lines) {
+				UiFont.drawText(context, textRenderer, line, x0, y, theme.text | 0xFF000000, scale, false);
+				y += lineH;
+			}
+			return;
+		}
+
 		if (row.system) {
 			// 서버 안내: 가운데에 작은 회색 글자
 			for (OrderedText line : row.lines) {
@@ -260,6 +273,17 @@ final class ConversationView {
 	}
 
 
+	/** 공백뿐이거나 폭이 없는 줄 */
+	private boolean blank(OrderedText line) {
+		if (textRenderer.getWidth(line) <= 0) return true;
+		boolean[] visible = {false};
+		line.accept((index, style, codePoint) -> {
+			if (!Character.isWhitespace(codePoint) && !Character.isSpaceChar(codePoint)) visible[0] = true;
+			return !visible[0];
+		});
+		return !visible[0];
+	}
+
 	/** 줄바꿈은 매 프레임 계산하지 않고 대화, 메시지 수, 폭, 크기/글꼴이 바뀔 때만 다시 한다 */
 	private void layout(Conversation c, int areaWidth) {
 		String style = bubbleScale() + "/" + metaScale() + "/" + labelScale() + "/" + sizes().bubblePadding + "/"
@@ -294,11 +318,22 @@ final class ConversationView {
 			if (m.sender != null && !m.outgoing && !m.system && (day != null || !m.sender.equals(prevSender))) senderLabel = m.sender;
 			prevSender = m.outgoing || m.system ? null : m.sender;
 
-			List<Emotes.Emote> stickers = m.system ? null : Emotes.stickers(m.text);
+			boolean log = m.styled != null;
+			List<Emotes.Emote> stickers = m.system || log ? null : Emotes.stickers(m.text);
 			List<OrderedText> lines = List.of();
 			int w = 0;
 			int h;
-			if (stickers != null) {
+			if (log) {
+				// 시스템 탭 줄: 오른쪽 시간 자리를 빼고 폭 전체로 줄바꿈
+				Text styled = NameLabels.fromJson(m.styled);
+				int maxLogText = Math.max(20, (int) ((areaWidth - 34) / scale));
+				// 서버는 줄을 맞추려고 공백이나 폭 없는 아이콘 글자를 뒤에 붙이기도 해서, 폭을 좁히면
+				// 그 부분만 다음 줄로 넘어가 짧은 메시지에도 빈 줄이 생긴다. 보이는 글자가 없는 줄은 뺀다
+				lines = new ArrayList<>(textRenderer.wrapLines(styled != null ? styled : Text.literal(m.text), maxLogText));
+				lines.removeIf(this::blank);
+				if (lines.isEmpty()) lines = List.of(OrderedText.EMPTY);
+				h = lines.size() * lineH;
+			} else if (stickers != null) {
 				h = sticker;
 			} else {
 				lines = textRenderer.wrapLines(UiFont.text(m.text), m.system ? maxSystemText : maxBubbleText);
@@ -309,7 +344,7 @@ final class ConversationView {
 			if (day != null) h += dayHeight();
 			Text label = senderLabel != null ? NameLabels.fromJson(m.senderLabel) : null;
 			if (senderLabel != null) h += senderHeight(label != null);
-			rows.add(new Row(lines, w, h, m.outgoing, m.system, TIME.format(when), day, senderLabel, label, stickers));
+			rows.add(new Row(lines, w, h, m.outgoing, m.system, TIME.format(when), day, senderLabel, label, stickers, log));
 			contentHeight += h + sizes().messageGap;
 		}
 		if (!rows.isEmpty()) contentHeight -= sizes().messageGap;

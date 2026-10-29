@@ -33,13 +33,22 @@ public final class WhisperSender {
 
 	/** 서버 채팅 길이 제한(256자)에서 명령어와 닉네임 길이를 뺀 값 */
 	public static int maxTextLength(String name) {
+		if (Channel.fromKey(name) == Channel.SYSTEM) return 256;
 		return Math.max(1, 256 - commandHead(name).length());
 	}
 
 	public static boolean send(String name, String text) {
-		ClientPlayNetworkHandler network = MinecraftClient.getInstance().getNetworkHandler();
+		MinecraftClient client = MinecraftClient.getInstance();
+		ClientPlayNetworkHandler network = client.getNetworkHandler();
 		String trimmed = text.trim();
 		if (network == null || trimmed.isEmpty()) return false;
+		if (Channel.fromKey(name) == Channel.SYSTEM) {
+			// 시스템 탭: 바닐라 채팅처럼 그대로 보낸다 ("/" 로 시작하면 명령어). 위쪽 화살표 기록에도 남긴다
+			client.inGameHud.getChatHud().addToMessageHistory(trimmed);
+			if (trimmed.startsWith("/")) network.sendChatCommand(trimmed.substring(1));
+			else network.sendChatMessage(trimmed);
+			return true;
+		}
 		// 대화창에는 서버가 돌려주는 메시지를 받아서 추가한다 (실패한 전송이 기록되지 않도록)
 		network.sendChatCommand(commandHead(name) + trimmed);
 		Channel channel = Channel.fromKey(name);

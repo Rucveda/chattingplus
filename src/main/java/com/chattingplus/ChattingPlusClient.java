@@ -35,10 +35,18 @@ public class ChattingPlusClient implements ClientModInitializer {
 
 		openKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
 				"key.chattingplus.open", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_U, "category.chattingplus"));
+		// 바닐라 채팅(T) 없이 팝업만 조작하는 키
+		KeyBinding popupKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+				"key.chattingplus.popup", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_Y, "category.chattingplus"));
 
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
 			while (openKey.wasPressed()) {
 				if (client.currentScreen == null) client.setScreen(new WhisperScreen());
+			}
+			while (popupKey.wasPressed()) {
+				if (client.currentScreen != null) continue;
+				if (PopupChat.hasWindows()) client.setScreen(new PopupScreen());
+				else client.inGameHud.setOverlayMessage(Text.translatable("chattingplus.popup.none"), false);
 			}
 			// 바뀐 기록은 몇 초에 한 번 모아서 저장
 			WhisperStore.get().tick();
@@ -91,9 +99,18 @@ public class ChattingPlusClient implements ClientModInitializer {
 			if (ModConfig.get().debugLog && (line.contains("보냄") || line.contains("받음"))) {
 				LOGGER.info("[ChattingPlus] not recognized as whisper: {}", line);
 			}
+			// 방금 보낸 귓속말에 대한 서버 안내("오프라인입니다" 등)는 그 대화에, 나머지는 모두 시스템 탭에
 			WhisperStore.Conversation noteFor = system ? WhisperSender.noteTarget(line) : null;
-			if (noteFor != null) WhisperStore.get().addNote(noteFor, WhisperParser.stripIcons(line));
-			return false;
+			if (noteFor != null) {
+				WhisperStore.get().addNote(noteFor, WhisperParser.stripIcons(line));
+				return false;
+			}
+			if (line.isBlank()) return false;
+			MinecraftClient client = MinecraftClient.getInstance();
+			String key = Channel.SYSTEM.key();
+			boolean viewing = (client.currentScreen instanceof WhisperScreen screen && screen.isViewing(key)) || PopupChat.isShowing(key);
+			WhisperStore.get().addSystem(message, !viewing);
+			return Channel.SYSTEM.settings().hideInChat;
 		}
 		if (ModConfig.get().debugLog) {
 			LOGGER.info("[ChattingPlus] whisper {} {}: {}", whisper.outgoing() ? "to" : "from", whisper.partner(), whisper.text());

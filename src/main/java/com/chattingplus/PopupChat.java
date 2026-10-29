@@ -86,8 +86,18 @@ public final class PopupChat {
 
 	static void register() {
 		ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> {
-			if (screen instanceof ChatScreen) attach(client, screen);
+			if (controls(screen)) attach(client, screen);
 		});
+	}
+
+	/** 팝업을 조작할 수 있는 화면: 바닐라 채팅창(T)이나 팝업 전용 화면(팝업 키) */
+	private static boolean controls(Screen screen) {
+		return screen instanceof ChatScreen || screen instanceof PopupScreen;
+	}
+
+	/** 띄워 둔 팝업이 있는지 (팝업 키를 눌렀을 때) */
+	public static boolean hasWindows() {
+		return !windows().isEmpty();
 	}
 
 	private static List<PopupWindow> windows() {
@@ -222,7 +232,7 @@ public final class PopupChat {
 	/** 지금 화면에 이 대화가 어느 팝업의 보고 있는 탭으로 보이는지 (다른 탭 뒤에 있으면 false) */
 	public static boolean isShowing(String name) {
 		MinecraftClient client = MinecraftClient.getInstance();
-		if (client.options.hudHidden || (client.currentScreen != null && !(client.currentScreen instanceof ChatScreen))) return false;
+		if (client.options.hudHidden || (client.currentScreen != null && !controls(client.currentScreen))) return false;
 		for (PopupWindow w : windows()) {
 			Conversation c = active(w, openConversations(w));
 			if (c != null && c.name.equalsIgnoreCase(name)) return true;
@@ -235,6 +245,11 @@ public final class PopupChat {
 	private static void attach(MinecraftClient client, Screen screen) {
 		attachedScreen = screen;
 		for (PopupWindow w : windows()) attachInput(w);
+		// 팝업 전용 화면이면 바닐라 입력칸이 없으니 맨 앞 팝업의 입력칸에 바로 커서를 둔다
+		if (screen instanceof PopupScreen && !windows().isEmpty()) {
+			TextFieldWidget input = rt(windows().get(windows().size() - 1)).input;
+			if (input != null) screen.setFocused(input);
+		}
 
 		ScreenMouseEvents.allowMouseClick(screen).register((s, mx, my, button) -> !onClick(s, mx, my, button));
 		ScreenMouseEvents.allowMouseScroll(screen).register((s, mx, my, horizontal, vertical) -> !onScroll(mx, my, vertical));
@@ -447,12 +462,42 @@ public final class PopupChat {
 			PopupWindow target = dropTargetAt(mx, my, w);
 			if (target != null) {
 				moveTab(w, dragTab, target);
+			} else if (onTabRow(w, mx, my)) {
+				reorderTab(w, dragTab, mx);
 			} else if (my < w.y || my >= w.y + rt(w).headerH || mx < w.x || mx >= w.x + w.width) {
 				tearOff(w, dragTab, mx, my);
 			}
 		}
 		dragTab = null;
 		ModConfig.save();
+	}
+
+	/** 그 창의 탭 줄 위인지 (탭이 2개 이상일 때만 탭 줄이 있다) */
+	private static boolean onTabRow(PopupWindow w, int mx, int my) {
+		return !rt(w).tabs.isEmpty() && mx >= w.x && mx < w.x + w.width && my >= w.y && my < w.y + tabH();
+	}
+
+	/** 탭 줄에서 mx 에 놓으면 들어갈 자리: 가운데가 mx 보다 오른쪽인 첫 탭의 앞 (없으면 맨 끝) */
+	private static int insertIndex(Runtime runtime, int mx) {
+		for (int i = 0; i < runtime.tabs.size(); i++) {
+			Tab tab = runtime.tabs.get(i);
+			if (mx < (tab.x0 + tab.x1) / 2) return i;
+		}
+		return runtime.tabs.size();
+	}
+
+	/** 같은 창 탭 줄 안에서 끌어 놓으면 순서를 바꾼다 */
+	private static void reorderTab(PopupWindow w, String name, int mx) {
+		Runtime runtime = rt(w);
+		int at = insertIndex(runtime, mx);
+		// 놓을 자리 바로 뒤 탭 이름 (그 앞에 넣는다). 맨 끝이면 null
+		String before = at < runtime.tabs.size() ? runtime.tabs.get(at).name : null;
+		if (name.equalsIgnoreCase(before)) return;
+		int from = indexOf(w, name);
+		if (from < 0) return;
+		String moved = w.tabs.remove(from);
+		int to = before != null ? indexOf(w, before) : w.tabs.size();
+		w.tabs.add(to < 0 ? w.tabs.size() : to, moved);
 	}
 
 	private static boolean isPopupInput(Element element) {
@@ -540,7 +585,7 @@ public final class PopupChat {
 		MinecraftClient client = MinecraftClient.getInstance();
 		for (Runtime runtime : runtimes.values()) runtime.rendered = false;
 		if (client.options.hudHidden) return;
-		boolean interactive = client.currentScreen instanceof ChatScreen;
+		boolean interactive = controls(client.currentScreen);
 		if (client.currentScreen != null && !interactive) return;
 		if (!interactive) {
 			drag = Drag.NONE;
@@ -576,8 +621,16 @@ public final class PopupChat {
 		stickerPicker.render(context, tr, mouseX, mouseY);
 
 		if (drag == Drag.TAB && dragTab != null) {
-			// 끌고 있는 탭을 마우스 옆에 그린다
 			Theme theme = Theme.get();
+			// 같은 창 탭 줄 위면 놓았을 때 들어갈 자리에 세로 막대
+			if (dragWindow != null && onTabRow(dragWindow, mouseX, mouseY)) {
+				Runtime runtime = rt(dragWindow);
+				int at = insertIndex(runtime, mouseX);
+				int lx = at < runtime.tabs.size() ? runtime.tabs.get(at).x0 : runtime.tabs.get(runtime.tabs.size() - 1).x1;
+				lx = Math.max(dragWindow.x + 1, Math.min(dragWindow.x + dragWindow.width - 1, lx));
+				context.fill(lx - 1, dragWindow.y, lx + 1, dragWindow.y + tabH(), theme.selection() | 0xFF000000);
+			}
+			// 끌고 있는 탭을 마우스 옆에 그린다
 			Conversation c = WhisperStore.get().find(dragTab);
 			String label = c != null ? tabLabel(c) : dragTab;
 			int lw = UiFont.width(tr, label) + 8;

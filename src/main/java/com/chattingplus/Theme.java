@@ -60,10 +60,12 @@ public class Theme {
 			case GLOBAL -> channelGlobal;
 			case LOCAL -> channelLocal;
 			case VILLAGE -> channelVillage;
+			case SYSTEM -> null;
 		};
 		if (stored != null) return stored;
 		boolean light = light();
 		return switch (channel) {
+			case SYSTEM -> light ? 0xFF6B6F78 : 0xFFB8BCC4;
 			case GLOBAL -> light ? 0xFF2F6FB3 : 0xFF8EC5FF;
 			case LOCAL -> light ? 0xFF2E8540 : 0xFF8EDB8A;
 			case VILLAGE -> light ? 0xFFB86A00 : 0xFFFFC46B;
@@ -75,6 +77,7 @@ public class Theme {
 			case GLOBAL -> channelGlobal = color;
 			case LOCAL -> channelLocal = color;
 			case VILLAGE -> channelVillage = color;
+			case SYSTEM -> {} // 시스템 탭 색은 바꾸지 않는다
 		}
 	}
 

@@ -36,6 +36,8 @@ public final class WhisperStore {
 		/** 말한 사람의 이름표(등급 아이콘, 칭호, 닉네임 색)를 서버가 보낸 모양 그대로 저장한 JSON. 없으면 null */
 		public String senderLabel;
 		public String text;
+		/** 시스템 탭 메시지: 서버가 보낸 줄 전체를 모양(색, 아이콘) 그대로 저장한 JSON. 그 밖에는 null */
+		public String styled;
 		public long time;
 
 		Message(boolean outgoing, boolean system, String text, long time) {
@@ -72,6 +74,7 @@ public final class WhisperStore {
 
 		public String displayName() {
 			Channel channel = channel();
+			if (channel == Channel.SYSTEM) return channel.label;
 			return channel != null ? channel.label + " 채팅" : name;
 		}
 	}
@@ -152,9 +155,25 @@ public final class WhisperStore {
 		return c;
 	}
 
+	/** 채널, 귓속말이 아닌 메시지를 시스템 탭에 서버가 보낸 모양 그대로 */
+	public Conversation addSystem(Text message, boolean markUnread) {
+		Conversation c = channel(Channel.SYSTEM);
+		Message m = new Message(false, false, message.getString(), System.currentTimeMillis());
+		m.styled = NameLabels.toJson(message);
+		append(c, m);
+		if (markUnread) c.unread++;
+		markDirty();
+		return c;
+	}
+
 	/** 채널 대화는 항상 있다. 그리는 도중에도 불리므로 version 을 올리지 않는다. */
 	public Conversation channel(Channel channel) {
-		return conversations.computeIfAbsent(key(channel.key()), k -> new Conversation(channel.key()));
+		return conversations.computeIfAbsent(key(channel.key()), k -> {
+			Conversation c = new Conversation(channel.key());
+			// 시스템 메시지는 많고 자주 와서 처음에는 알림을 꺼 둔다 (종 버튼으로 켤 수 있다)
+			c.muted = channel == Channel.SYSTEM;
+			return c;
+		});
 	}
 
 	public List<Conversation> channels() {

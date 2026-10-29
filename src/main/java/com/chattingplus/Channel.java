@@ -9,7 +9,9 @@ import net.minecraft.text.Text;
 public enum Channel {
 	GLOBAL("global", "전체", "ㅈ", "ꀇ"),
 	LOCAL("local", "지역", "ㅇ", "ꀈ"),
-	VILLAGE("village", "마을", "ㅁ", "ꀉ");
+	VILLAGE("village", "마을", "ㅁ", "ꀉ"),
+	/** 채널 채팅과 귓속말이 아닌 나머지 모든 메시지 (서버 안내, 명령어 결과, 일반 채팅 등). 입력은 바닐라 채팅처럼 보낸다 */
+	SYSTEM("system", "시스템", "", "");
 
 	/**
 	 * 채널 채팅 한 줄.
