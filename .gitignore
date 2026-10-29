@@ -1,0 +1,17 @@
+# Gradle / Loom
+.gradle/
+build/
+out/
+
+# 개발용 테스트 클라이언트 (게임 파일, 설정, 스크린샷)
+run/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+bin/
+
+# OS
+.DS_Store
+Thumbs.db

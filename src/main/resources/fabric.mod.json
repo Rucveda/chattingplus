@@ -1,0 +1,19 @@
+{
+	"schemaVersion": 1,
+	"id": "chattingplus",
+	"version": "${version}",
+	"name": "Chatting Plus",
+	"description": "귓속말을 메신저처럼 1:1 대화창으로 모아 보여주는 클라이언트 모드",
+	"environment": "client",
+	"entrypoints": {
+		"client": ["com.chattingplus.ChattingPlusClient"],
+		"modmenu": ["com.chattingplus.ModMenuIntegration"]
+	},
+	"mixins": ["chattingplus.mixins.json"],
+	"depends": {
+		"fabricloader": ">=0.16.0",
+		"minecraft": "~1.21.4",
+		"java": ">=21",
+		"fabric-api": "*"
+	}
+}

@@ -1,0 +1,40 @@
+{
+	"packs": [
+		{
+			"id": "basic",
+			"name": "기본",
+			"author": "Twemoji (CC-BY 4.0)",
+			"sizes": [64, 128, 256],
+			"emotes": [
+				{"id": "smile", "token": ":웃음:", "name": "웃음"},
+				{"id": "laugh", "token": ":크크:", "name": "크크"},
+				{"id": "love", "token": ":하트:", "name": "하트"},
+				{"id": "wink", "token": ":윙크:", "name": "윙크"},
+				{"id": "sad", "token": ":슬픔:", "name": "슬픔"},
+				{"id": "cry", "token": ":엉엉:", "name": "엉엉"},
+				{"id": "tear", "token": ":ㅠㅠ:", "name": "ㅠㅠ"},
+				{"id": "angry", "token": ":화남:", "name": "화남"},
+				{"id": "wow", "token": ":놀람:", "name": "놀람"},
+				{"id": "scream", "token": ":헉:", "name": "헉"},
+				{"id": "blush", "token": ":당황:", "name": "당황"},
+				{"id": "sweat", "token": ":머쓱:", "name": "머쓱"},
+				{"id": "think", "token": ":갸웃:", "name": "갸웃"},
+				{"id": "smirk", "token": ":씨익:", "name": "씨익"},
+				{"id": "cool", "token": ":쿨:", "name": "쿨"},
+				{"id": "please", "token": ":부탁:", "name": "부탁"},
+				{"id": "shh", "token": ":쉿:", "name": "쉿"},
+				{"id": "sleepy", "token": ":졸림:", "name": "졸림"},
+				{"id": "yawn", "token": ":하품:", "name": "하품"},
+				{"id": "wave", "token": ":안녕:", "name": "안녕"},
+				{"id": "thanks", "token": ":감사:", "name": "감사"},
+				{"id": "thumbsup", "token": ":최고:", "name": "최고"},
+				{"id": "ok", "token": ":오케이:", "name": "오케이"},
+				{"id": "clap", "token": ":박수:", "name": "박수"},
+				{"id": "fighting", "token": ":화이팅:", "name": "화이팅"},
+				{"id": "party", "token": ":축하:", "name": "축하"},
+				{"id": "heart", "token": ":사랑:", "name": "사랑"},
+				{"id": "fire", "token": ":불꽃:", "name": "불꽃"}
+			]
+		}
+	]
+}

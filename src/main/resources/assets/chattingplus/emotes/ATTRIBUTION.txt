@@ -1,0 +1,4 @@
+기본 이모티콘 팩 그림: Twemoji (Copyright 2019 Twitter, Inc and other contributors; 2024 jdecked and contributors)
+https://github.com/jdecked/twemoji
+Licensed under CC-BY 4.0: https://creativecommons.org/licenses/by/4.0/
+SVG 원본을 128px PNG 로 변환해서 사용했습니다.
