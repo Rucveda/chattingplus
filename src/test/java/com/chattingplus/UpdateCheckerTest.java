@@ -13,15 +13,13 @@ class UpdateCheckerTest {
 		UpdateChecker.Release release = UpdateChecker.parse(body);
 		assertNotNull(release);
 		assertEquals("1.13.0", release.version());
-		assertEquals("https://github.com/rucveda/chattingplus/releases/tag/v1.13.0", release.url());
 		assertEquals("이모티콘 8종 추가", release.message());
 	}
 
 	@Test
-	void missingFieldsFallBack() {
+	void missingBodyIsNull() {
 		UpdateChecker.Release release = UpdateChecker.parse("{\"tag_name\":\"1.13.0\",\"html_url\":\"https://evil.example/x\",\"body\":null}");
 		assertNotNull(release);
-		assertEquals("https://github.com/rucveda/chattingplus/releases/latest", release.url());
 		assertNull(release.message());
 	}
 

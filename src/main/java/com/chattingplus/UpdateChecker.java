@@ -25,12 +25,14 @@ import java.time.Duration;
 final class UpdateChecker {
 	static final String REPO = "rucveda/chattingplus";
 	private static final String LATEST_URL = "https://api.github.com/repos/" + REPO + "/releases/latest";
+	// 안내의 [내려받기] 는 공식 소개 글(카페)로 연결한다. 내려받는 곳과 설명이 거기 모여 있다
+	static final String PAGE_URL = "https://cafe.naver.com/ddingtycoon/13796";
 	private static final int MAX_MESSAGE = 80;
 	private static boolean checked;
 
 	private UpdateChecker() {}
 
-	record Release(String version, String url, String message) {}
+	record Release(String version, String message) {}
 
 	static void checkOnce() {
 		if (checked) return;
@@ -59,16 +61,14 @@ final class UpdateChecker {
 				});
 	}
 
-	/** GitHub releases/latest 응답에서 버전, 페이지 주소, 설명 첫 줄을 꺼낸다. 형식이 다르면 null */
+	/** GitHub releases/latest 응답에서 버전과 설명 첫 줄을 꺼낸다. 형식이 다르면 null */
 	static Release parse(String body) {
 		try {
 			JsonObject json = JsonParser.parseString(body).getAsJsonObject();
 			String tag = string(json, "tag_name");
 			if (tag == null || tag.isBlank()) return null;
 			String version = tag.trim().replaceFirst("^[vV]", "");
-			String url = string(json, "html_url");
-			if (url == null || !url.startsWith("https://github.com/")) url = "https://github.com/" + REPO + "/releases/latest";
-			return new Release(version, url, firstLine(string(json, "body")));
+			return new Release(version, firstLine(string(json, "body")));
 		} catch (RuntimeException e) {
 			return null;
 		}
@@ -96,8 +96,8 @@ final class UpdateChecker {
 		text.append(Text.literal(" "));
 		text.append(Text.translatable("chattingplus.update.download").styled(s -> s
 				.withColor(Formatting.AQUA).withUnderline(true)
-				.withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, release.url()))
-				.withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal(release.url())))));
+				.withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, PAGE_URL))
+				.withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal(PAGE_URL)))));
 		// 서버로 보내지 않고 내 채팅창에만 표시
 		client.inGameHud.getChatHud().addMessage(Text.literal("[Chatting Plus] ").formatted(Formatting.GOLD).append(text));
 	}

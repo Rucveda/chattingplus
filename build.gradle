@@ -14,6 +14,16 @@ repositories {
 		name = 'TerraformersMC'
 		url = 'https://maven.terraformersmc.com/releases/'
 	}
+	maven {
+		name = 'Modrinth'
+		url = 'https://api.modrinth.com/maven'
+		content { includeGroup 'maven.modrinth' }
+	}
+	maven {
+		name = 'Quilt'
+		url = 'https://maven.quiltmc.org/repository/release/'
+		content { includeGroup 'org.quiltmc.parsers' }
+	}
 }
 
 dependencies {
@@ -23,6 +33,18 @@ dependencies {
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 	// 설정 버튼 연결용. 없어도 모드는 동작한다.
 	modCompileOnly "com.terraformersmc:modmenu:13.0.3"
+
+	// 다른 채팅 모드와 같이 켜서 확인할 때만: gradlew runClient -PcompatTest
+	// (테스트 클라이언트에만 들어가고 배포 파일에는 들어가지 않는다)
+	if (project.hasProperty("compatTest")) {
+		modLocalRuntime "maven.modrinth:chatpatches:214.6.14"
+		modLocalRuntime "maven.modrinth:yacl:3.6.6+1.21.4-fabric"
+		modLocalRuntime "maven.modrinth:caramel-chat:DThCgWlO"
+		// YACL 안에 묶여 있지만 개발 실행에서는 따로 넣어야 하는 라이브러리
+		localRuntime "org.quiltmc.parsers:json:0.2.1"
+		localRuntime "org.quiltmc.parsers:gson:0.2.1"
+		localRuntime "com.twelvemonkeys.imageio:imageio-webp:3.12.0"
+	}
 
 	testImplementation "org.junit.jupiter:junit-jupiter:5.11.4"
 	testRuntimeOnly "org.junit.platform:junit-platform-launcher"
