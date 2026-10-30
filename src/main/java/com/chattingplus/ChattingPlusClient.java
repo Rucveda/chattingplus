@@ -6,7 +6,8 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
-import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+import net.fabricmc.fabric.api.client.rendering.v1.HudLayerRegistrationCallback;
+import net.fabricmc.fabric.api.client.rendering.v1.IdentifiedLayer;
 import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
 import net.minecraft.resource.ResourceManager;
@@ -65,9 +66,18 @@ public class ChattingPlusClient implements ClientModInitializer {
 		});
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> WhisperStore.get().save());
 
-		HudRenderCallback.EVENT.register((context, tickCounter) -> {
-			PopupChat.render(context);
-			UnreadHud.render(context, tickCounter);
+		// 팝업은 설정에 따라 HUD 맨 위(기본) 또는 보스바 아래에 그린다.
+		// 서버가 보스바로 채팅창 위에 띄우는 안내("마을채팅(/ㅁ)" 등)를 팝업이 가리지 않게 아래로 보낼 수 있다.
+		// HUD 는 층마다 앞쪽(z)으로 조금씩 올라가며 그려서, 맨 위에 그리려면 마지막 층으로 넣어야 한다
+		// (HudRenderCallback 은 가장 뒤쪽 z 에 그려져서 보스바 글자에 가려지고, 팝업 자리가 구멍처럼 보였다)
+		HudLayerRegistrationCallback.EVENT.register(drawer -> {
+			drawer.attachLayerBefore(IdentifiedLayer.BOSS_BAR, Identifier.of(MOD_ID, "popups_under"), (context, tickCounter) -> {
+				if (ModConfig.get().popupsUnderHud) PopupChat.render(context);
+			});
+			drawer.addLayer(IdentifiedLayer.of(Identifier.of(MOD_ID, "popups"), (context, tickCounter) -> {
+				if (!ModConfig.get().popupsUnderHud) PopupChat.render(context);
+				UnreadHud.render(context, tickCounter);
+			}));
 		});
 		PopupChat.register();
 

@@ -593,6 +593,9 @@ public final class PopupChat {
 		}
 		// 채팅창이 닫혔거나 편집하던 팝업이 없어지면 스티커 편집도 끝
 		if (stickerOwner != null && (!interactive || !windows().contains(stickerOwner))) stopStickers();
+		// 앞서 그린 HUD(보스바 등)의 글자는 모아 뒀다가 나중에 그려지는데, 그 사이 반투명 팝업이 먼저 깊이를 차지하면
+		// 그 글자가 팝업 자리만 빠져서 구멍 난 것처럼 보인다. 먼저 다 그려 두고 그 위에 팝업을 얹는다
+		context.draw();
 
 		TextRenderer tr = client.textRenderer;
 		int screenW = context.getScaledWindowWidth(), screenH = context.getScaledWindowHeight();

@@ -78,6 +78,8 @@
 	"chattingplus.settings.gap": "메시지 간격",
 	"chattingplus.settings.sticker": "이모티콘 크기",
 	"chattingplus.settings.popup_opacity": "불투명도",
+	"chattingplus.settings.popup_layer.over": "팝업 위치: 서버 UI 위",
+	"chattingplus.settings.popup_layer.under": "팝업 위치: 서버 UI 아래 (보스바 아래)",
 	"chattingplus.settings.corner_radius": "모서리 둥글기",
 	"chattingplus.settings.widgets.vanilla": "버튼 모양: 마인크래프트",
 	"chattingplus.settings.widgets.themed": "버튼 모양: 테마 색",

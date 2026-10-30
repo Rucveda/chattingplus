@@ -38,6 +38,8 @@ public class ModConfig {
 	public boolean hideInChat = true;
 	public boolean playSound = true;
 	public boolean showHud = true;
+	/** 팝업을 보스바와 그 위의 HUD(서버 안내 UI 등) 아래에 그린다. 끄면 HUD 맨 위에 그린다 */
+	public boolean popupsUnderHud = false;
 	/** 메인 창(U) 크기 (GUI 픽셀). 오른쪽 아래 모서리를 끌어 바꾼다. 화면보다 크면 화면에 맞춘다 */
 	public int mainWidth = 520;
 	public int mainHeight = 320;

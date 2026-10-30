@@ -35,6 +35,8 @@ public class SettingsScreen extends Screen {
 	/** 색 한 칸: 이름(작은 글자) + 견본 */
 	private static final int ROW_H = 22;
 	private static final int STEP = 20;
+	/** 글자 크기 조정 바 단계. 너무 잘게 나누면 픽셀 글꼴이 어떤 값에서 흐려져서 이 정도로 */
+	private static final double SCALE_STEP = 0.05;
 	private static final int OPTION_H = 14;
 	/** 카드 안쪽 여백, 카드 머리글 높이, 카드 사이 간격 */
 	private static final int CARD_PAD = 5;
@@ -323,23 +325,30 @@ public class SettingsScreen extends Screen {
 		DoubleFunction<String> px = v -> (int) v + "px";
 
 		y = groupHeading("list", x, w, y);
-		slider(x, y, w, "list_name", 0.75, 1.5, 0.125, s.listNameScale, v -> s.listNameScale = (float) v, times);
-		slider(x, y += STEP, w, "list_sub", 0.75, 1.5, 0.125, s.listSubScale, v -> s.listSubScale = (float) v, times);
+		slider(x, y, w, "list_name", 0.75, 1.5, SCALE_STEP, s.listNameScale, v -> s.listNameScale = (float) v, times);
+		slider(x, y += STEP, w, "list_sub", 0.75, 1.5, SCALE_STEP, s.listSubScale, v -> s.listSubScale = (float) v, times);
 		y += STEP + 4;
 
 		y = groupHeading("chat", x, w, y);
-		slider(x, y, w, "title", 0.75, 1.5, 0.125, s.titleScale, v -> s.titleScale = (float) v, times);
-		slider(x, y += STEP, w, "text_scale", 0.5, 2.0, 0.125, s.textScale, v -> s.textScale = (float) v, times);
-		slider(x, y += STEP, w, "meta", 0.75, 1.5, 0.125, s.metaScale, v -> s.metaScale = (float) v, times);
+		slider(x, y, w, "title", 0.75, 1.5, SCALE_STEP, s.titleScale, v -> s.titleScale = (float) v, times);
+		slider(x, y += STEP, w, "text_scale", 0.5, 2.0, SCALE_STEP, s.textScale, v -> s.textScale = (float) v, times);
+		slider(x, y += STEP, w, "meta", 0.75, 1.5, SCALE_STEP, s.metaScale, v -> s.metaScale = (float) v, times);
 		slider(x, y += STEP, w, "padding", 1, 10, 1, s.bubblePadding, v -> s.bubblePadding = (int) v, px);
 		slider(x, y += STEP, w, "gap", 0, 12, 1, s.messageGap, v -> s.messageGap = (int) v, px);
-		slider(x, y += STEP, w, "sticker", 24, 96, 4, s.stickerSize, v -> s.stickerSize = (int) v, px);
+		slider(x, y += STEP, w, "sticker", 24, 96, 1, s.stickerSize, v -> s.stickerSize = (int) v, px);
 		y += STEP + 4;
 
 		y = groupHeading("popup", x, w, y);
-		slider(x, y, w, "popup_scale", 0.75, 1.5, 0.125, s.popupScale, v -> s.popupScale = (float) v, times);
-		slider(x, y += STEP, w, "popup_opacity", 10, 100, 5, s.popupOpacity, v -> s.popupOpacity = (int) v, v -> (int) v + "%");
-		y += STEP + 4;
+		slider(x, y, w, "popup_scale", 0.75, 1.5, SCALE_STEP, s.popupScale, v -> s.popupScale = (float) v, times);
+		slider(x, y += STEP, w, "popup_opacity", 10, 100, 1, s.popupOpacity, v -> s.popupOpacity = (int) v, v -> (int) v + "%");
+		// 팝업을 서버 UI(보스바로 띄우는 안내 등) 위에 그릴지 아래에 그릴지
+		place(UiButton.create(popupLayerLabel(), b -> {
+			ModConfig cfg = ModConfig.get();
+			cfg.popupsUnderHud = !cfg.popupsUnderHud;
+			ModConfig.save();
+			b.setMessage(popupLayerLabel());
+		}).dimensions(x, 0, w, 14).small().build(), y += STEP);
+		y += 18 + 4;
 
 		y = groupHeading("frame", x, w, y);
 		slider(x, y, w, "corner_radius", 0, 10, 1, s.cornerRadius, v -> s.cornerRadius = (int) v, px);
@@ -446,7 +455,7 @@ public class SettingsScreen extends Screen {
 	}
 
 	private void backgroundSlider(int x, int y, int w, String key, int min, int max, int current, ObjIntConsumer<ModConfig.Background> set) {
-		place(new ValueSlider(x, 0, w, Text.translatable("chattingplus.settings." + key), min, max, 5, current,
+		place(new ValueSlider(x, 0, w, Text.translatable("chattingplus.settings." + key), min, max, 1, current,
 				v -> editBackground(b -> set.accept(b, (int) v)), v -> (int) v + "%"), y);
 	}
 
@@ -489,6 +498,10 @@ public class SettingsScreen extends Screen {
 			apply.accept(v);
 			ModConfig.save();
 		}, format), y);
+	}
+
+	private static Text popupLayerLabel() {
+		return Text.translatable(ModConfig.get().popupsUnderHud ? "chattingplus.settings.popup_layer.under" : "chattingplus.settings.popup_layer.over");
 	}
 
 	private Text shadowLabel() {
@@ -877,7 +890,9 @@ public class SettingsScreen extends Screen {
 		}
 
 		private double current() {
-			return min + Math.round((max - min) * value / step) * step;
+			// 0.05 같은 단계를 곱하면 1.0500000001 처럼 끝자리가 생겨서 설정 파일에 그대로 남지 않게 다듬는다
+			double v = min + Math.round((max - min) * value / step) * step;
+			return Math.round(v * 1_000_000) / 1_000_000.0;
 		}
 
 		@Override
