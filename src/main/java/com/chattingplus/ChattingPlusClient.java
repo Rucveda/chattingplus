@@ -29,6 +29,7 @@ public class ChattingPlusClient implements ClientModInitializer {
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
 	private static KeyBinding openKey;
+	private static KeyBinding popupKey;
 
 	@Override
 	public void onInitializeClient() {
@@ -37,7 +38,7 @@ public class ChattingPlusClient implements ClientModInitializer {
 		openKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
 				"key.chattingplus.open", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_U, "category.chattingplus"));
 		// 바닐라 채팅(T) 없이 팝업만 조작하는 키
-		KeyBinding popupKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+		popupKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
 				"key.chattingplus.popup", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_Y, "category.chattingplus"));
 
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
@@ -97,6 +98,10 @@ public class ChattingPlusClient implements ClientModInitializer {
 
 	public static KeyBinding openKey() {
 		return openKey;
+	}
+
+	public static KeyBinding popupKey() {
+		return popupKey;
 	}
 
 	/** 귓속말이면 기록하고, 채팅창에서 숨겨야 하면 true */

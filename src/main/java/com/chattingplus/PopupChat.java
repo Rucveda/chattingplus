@@ -383,10 +383,11 @@ public final class PopupChat {
 		}
 		PopupWindow w = windowAt(mx, my);
 		if (w == null) {
-			// 팝업 전용 키(Y)로 들어왔으면 바깥을 누를 때 게임으로 돌아간다 (Esc 와 같음)
+			// 팝업 전용 키(Y)로 들어왔으면 입력칸 선택만 푼다. 화면은 닫지 않아서 다른 모드(Together Plus 등)의
+			// 화면 요소를 그대로 누를 수 있고, 나갈 때는 Esc 나 Y 를 한 번 더 누른다 (PopupScreen.keyPressed)
 			if (screen instanceof PopupScreen) {
-				screen.close();
-				return true;
+				if (isPopupInput(screen.getFocused())) screen.setFocused(null);
+				return false;
 			}
 			// 채팅창(T)에서는 원래 채팅 입력칸으로 돌아간다
 			if (isPopupInput(screen.getFocused())) focusVanillaChat(screen);
