@@ -1,0 +1,45 @@
+# v1.2.3 같은 태그를 푸시하면 모드를 빌드해 GitHub Release 를 만들고 jar 를 첨부한다.
+# 설명은 release-notes/<태그>.md 에서 가져온다. 첫 줄은 게임 안 업데이트 알림에 그대로 나온다.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: 태그와 모드 버전 확인
+        run: |
+          VERSION=$(grep '^mod_version=' gradle.properties | cut -d= -f2)
+          if [ "v$VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "태그($GITHUB_REF_NAME)와 gradle.properties 의 mod_version($VERSION)이 다릅니다"
+            exit 1
+          fi
+          if [ ! -f "release-notes/$GITHUB_REF_NAME.md" ]; then
+            echo "release-notes/$GITHUB_REF_NAME.md 가 없습니다"
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: 빌드
+        run: ./gradlew build --no-daemon
+
+      - name: Release 만들기
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "build/libs/chattingplus-$VERSION.jar" \
+            --title "Chatting Plus $GITHUB_REF_NAME" \
+            --notes-file "release-notes/$GITHUB_REF_NAME.md"
