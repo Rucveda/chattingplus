@@ -105,7 +105,11 @@ public class ChattingPlusClient implements ClientModInitializer {
 		WhisperParser.Whisper whisper = WhisperParser.parse(line);
 		if (whisper == null) {
 			Channel.Line channelLine = Channel.parse(message);
-			if (channelLine != null) return onChannelMessage(channelLine);
+			if (channelLine != null) {
+				// 다른 모드의 데이터 문자열은 기록하지도, 채팅창에서 숨기지도 않는다 (지우는 건 그 모드 몫)
+				if (WhisperParser.isModData(channelLine.text())) return false;
+				return onChannelMessage(channelLine);
+			}
 			if (ModConfig.get().debugLog && (line.contains("보냄") || line.contains("받음"))) {
 				LOGGER.info("[ChattingPlus] not recognized as whisper: {}", line);
 			}
@@ -122,6 +126,7 @@ public class ChattingPlusClient implements ClientModInitializer {
 			WhisperStore.get().addSystem(message, !viewing);
 			return Channel.SYSTEM.settings().hideInChat;
 		}
+		if (WhisperParser.isModData(whisper.text())) return false;
 		if (ModConfig.get().debugLog) {
 			LOGGER.info("[ChattingPlus] whisper {} {}: {}", whisper.outgoing() ? "to" : "from", whisper.partner(), whisper.text());
 		}

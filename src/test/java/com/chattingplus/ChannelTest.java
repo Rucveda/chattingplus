@@ -20,6 +20,13 @@ class ChannelTest {
 	private static final String VILLAGE_ICONS = "󯿻ꀂ󯿾ꀁ󯼡󐀁ꀉ󯿿";
 
 	@Test
+	void togetherPlusDataInVillageChatIsModData() {
+		Channel.Line line = Channel.parse(VILLAGE_ICONS + "백령 : ~tp{\"t\":\"pos\"}");
+		assertNotNull(line);
+		assertTrue(WhisperParser.isModData(line.text()));
+	}
+
+	@Test
 	void globalLineWithTitle() {
 		Channel.Line line = Channel.parse(GLOBAL_ICONS + "[1st] 백령 : 국밥 먹을지 말지");
 		assertNotNull(line);

@@ -26,6 +26,14 @@ public final class WhisperParser {
 		return new Whisper(partner, outgoing, m.group("msg").trim());
 	}
 
+	/**
+	 * 다른 모드가 귓속말/채널 채팅으로 주고받는 데이터 문자열이면 true.
+	 * Together Plus 는 "~tp" 로 시작하는 줄로 통신하고 바닐라 채팅창에서는 스스로 지우지만, 우리 기록까지는 지우지 못한다.
+	 */
+	public static boolean isModData(String text) {
+		return text.replaceAll("§.", "").stripLeading().startsWith("~tp");
+	}
+
 	/** 서버가 줄 앞에 붙이는 아이콘 문자와 색 코드를 지운다 */
 	static String stripIcons(String line) {
 		return line.replaceAll("§.", "").replaceFirst("^[^\\p{IsHangul}A-Za-z0-9\\[(]*", "").trim();

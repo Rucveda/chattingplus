@@ -16,6 +16,16 @@ class WhisperParserTest {
 	}
 
 	@Test
+	void togetherPlusDataIsModData() {
+		WhisperParser.Whisper w = WhisperParser.parse("(Alex_12 → 백령<받음>) ~tp{\"t\":\"pos\"}");
+		assertNotNull(w);
+		assertTrue(WhisperParser.isModData(w.text()));
+		assertTrue(WhisperParser.isModData(" §7~tp abc"));
+		assertFalse(WhisperParser.isModData("안녕 ~tp"));
+		assertFalse(WhisperParser.isModData("~TP 대문자는 일반 채팅"));
+	}
+
+	@Test
 	void receivedWhisperPartnerIsSender() {
 		WhisperParser.Whisper w = WhisperParser.parse("(Alex_12 → 백령<받음>) 거래 할래요? (가격 -> 10)");
 		assertNotNull(w);
