@@ -21,6 +21,8 @@ import java.time.Duration;
  * 새 버전 안내. GitHub 의 최신 Release(초안·사전 출시 제외)를 확인해 태그(v1.13.0)가 지금 버전보다 새로우면
  * 내 채팅창에만 안내 문구를 띄운다. Release 설명의 첫 줄을 함께 보여준다. 자동으로 내려받거나 설치하지는 않는다.
  * 게임을 켠 뒤 서버에 처음 들어갈 때 한 번만 확인한다.
+ * 안내는 리소스팩 내려받기나 대기실을 지나 실제로 게임 화면에 몇 초 머문 뒤에 띄운다. 서버를 옮길 때(재설정 단계)
+ * 마인크래프트가 채팅창을 비우므로, 띄운 지 얼마 안 돼 다시 접속 처리가 오면(대기실 → 본 서버) 한 번 더 띄운다.
  */
 final class UpdateChecker {
 	static final String REPO = "rucveda/chattingplus";
@@ -28,14 +30,24 @@ final class UpdateChecker {
 	// 안내의 [내려받기] 는 공식 소개 글(카페)로 연결한다. 내려받는 곳과 설명이 거기 모여 있다
 	static final String PAGE_URL = "https://cafe.naver.com/ddingtycoon/13796";
 	private static final int MAX_MESSAGE = 80;
+	private static final int SETTLE_TICKS = 60;
+	private static final long REPEAT_WINDOW_MS = 120_000;
 	private static boolean checked;
+	private static Release found;
+	private static boolean pending;
+	private static int settledTicks;
+	private static long shownAt;
 
 	private UpdateChecker() {}
 
 	record Release(String version, String message) {}
 
-	static void checkOnce() {
-		if (checked) return;
+	/** 서버에 들어갈 때마다 불린다 (채널/월드 이동 포함) */
+	static void onJoin() {
+		if (checked) {
+			if (found != null && shownAt > 0 && System.currentTimeMillis() - shownAt < REPEAT_WINDOW_MS) pending = true;
+			return;
+		}
 		checked = true;
 		if (!ModConfig.get().checkUpdates) return;
 
@@ -53,7 +65,10 @@ final class UpdateChecker {
 					Release release = parse(response.body());
 					if (release == null || compare(release.version(), currentVersion()) <= 0) return;
 					MinecraftClient client = MinecraftClient.getInstance();
-					client.execute(() -> notify(client, release));
+					client.execute(() -> {
+						found = release;
+						pending = true;
+					});
 				})
 				.exceptionally(e -> {
 					ChattingPlusClient.LOGGER.warn("[ChattingPlus] update check failed: {}", e.toString());
@@ -88,6 +103,20 @@ final class UpdateChecker {
 			return s.length() > MAX_MESSAGE ? s.substring(0, MAX_MESSAGE - 1) + "…" : s;
 		}
 		return null;
+	}
+
+	/** 매 틱. 게임 화면(다른 화면 없이)에 잠시 머문 뒤에 안내를 띄운다 */
+	static void tick(MinecraftClient client) {
+		if (!pending) return;
+		if (client.player == null || client.world == null || client.currentScreen != null) {
+			settledTicks = 0;
+			return;
+		}
+		if (++settledTicks < SETTLE_TICKS) return;
+		pending = false;
+		settledTicks = 0;
+		shownAt = System.currentTimeMillis();
+		notify(client, found);
 	}
 
 	private static void notify(MinecraftClient client, Release release) {

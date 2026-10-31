@@ -50,6 +50,7 @@ public class ChattingPlusClient implements ClientModInitializer {
 				if (PopupChat.hasWindows()) client.setScreen(new PopupScreen());
 				else client.inGameHud.setOverlayMessage(Text.translatable("chattingplus.popup.none"), false);
 			}
+			UpdateChecker.tick(client);
 			// 바뀐 기록은 몇 초에 한 번 모아서 저장
 			WhisperStore.get().tick();
 		});
@@ -63,7 +64,7 @@ public class ChattingPlusClient implements ClientModInitializer {
 		// 채널/월드 이동 때도 JOIN 이 다시 불린다. 같은 서버면 WhisperStore 가 기록을 그대로 유지한다.
 		ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
 			WhisperStore.get().load(serverKey(client));
-			UpdateChecker.checkOnce();
+			UpdateChecker.onJoin();
 		});
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> WhisperStore.get().save());
 

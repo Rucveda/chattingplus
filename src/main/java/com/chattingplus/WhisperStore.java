@@ -114,13 +114,20 @@ public final class WhisperStore {
 			try (Reader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
 				List<Conversation> list = GSON.fromJson(reader, new TypeToken<List<Conversation>>() {}.getType());
 				if (list != null) {
+					boolean purged = false;
 					for (Conversation c : list) {
 						if (c.messages == null) c.messages = new ArrayList<>();
+						// 예전 버전이 기록해 둔 다른 모드의 데이터 문자열(Together Plus 의 ~tp)은 지운다
+						if (c.messages.removeIf(m -> m.styled == null && m.text != null && WhisperParser.isModData(m.text))) {
+							purged = true;
+							if (c.messages.isEmpty() && !c.favorite && c.channel() == null) continue;
+						}
 						if (!ChatBackground.canCustomize(c)) c.background = null;
 						if (c.background != null) c.background.sanitize();
 						conversations.put(key(c.name), c);
 						for (Message m : c.messages) rememberLabel(m);
 					}
+					if (purged) markDirty();
 				}
 			} catch (Exception e) {
 				ChattingPlusClient.LOGGER.error("Failed to read {}", file, e);
