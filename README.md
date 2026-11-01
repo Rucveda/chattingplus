@@ -25,15 +25,10 @@
 ## 설정 파일
 
 대부분은 게임 안 설정 화면(대화창 왼쪽 아래 톱니바퀴)에서 바꿉니다.
-서버에 맞춰야 하는 값은 `config/chattingplus.json` 에서 직접 고칩니다.
+아래 값은 `config/chattingplus.json` 에서 직접 고칩니다.
 
 | 항목 | 기본값 | 설명 |
 |---|---|---|
-| `commandPrefix` | `귓` | 귓속말 명령어 (슬래시 제외) |
-| `whisperPattern` | | 귓속말 줄을 알아보는 정규식. 이름 그룹 `from`, `to`, `dir`, `msg` 필요 |
-| `sentTag` | `보냄` | `dir` 이 이 값이면 내가 보낸 귓속말 |
-| `channels.*.command` | `ㅈ` / `ㅇ` / `ㅁ` | 채널 채팅 명령어 |
-| `channels.*.marker` | | 서버가 채널 줄 앞에 붙이는 아이콘 문자 |
 | `maxMessagesPerConversation` | `1000` | 귓속말 상대 한 명당 보관하는 메시지 수 |
 | `maxMessagesPerChannel` | `500` | 채널 하나당 보관하는 메시지 수 |
 | `debugLog` | `false` | 켜면 인식한 줄과 인식하지 못한 귓속말 후보를 `latest.log` 에 남깁니다 |
@@ -46,9 +41,6 @@
 ```
 
 결과물은 `build/libs/` 에 생깁니다. JDK 21 이 필요하며, 없으면 Gradle 이 자동으로 내려받습니다.
-
-- 이모티콘·아이콘 그림 다시 만들기: `tools/BuildFlatPack.java` (jsvg 필요, 파일 안 설명 참고)
-- 모드 아이콘 다시 만들기: `java tools/BuildIcon.java .`
 
 ## 라이선스
 
