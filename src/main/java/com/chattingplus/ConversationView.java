@@ -54,10 +54,13 @@ final class ConversationView {
 	private final TextRenderer textRenderer;
 	private final List<Row> rows = new ArrayList<>();
 	private Conversation layoutFor;
-	private int layoutCount = -1;
+	/** 메시지 수가 아니라 바뀐 횟수로 본다. 기록이 한도에 차면 하나 들어오고 하나 지워져서 수가 그대로다 */
+	private int layoutRevision = -1;
 	private int layoutWidth = -1;
-	/** 크기나 글꼴이 바뀌면 줄바꿈을 다시 해야 한다 */
-	private String layoutStyle = "";
+	// 크기나 글꼴이 바뀌면 줄바꿈을 다시 해야 한다. 매 프레임 비교하므로 문자열을 만들지 않고 값 그대로 둔다
+	private float layoutBubble, layoutMeta, layoutLabel;
+	private int layoutPadding, layoutSticker;
+	private String layoutFont = "";
 	private int contentHeight;
 	/** 맨 아래에서부터 위로 스크롤한 픽셀 수 */
 	private double scroll;
@@ -284,15 +287,23 @@ final class ConversationView {
 		return !visible[0];
 	}
 
-	/** 줄바꿈은 매 프레임 계산하지 않고 대화, 메시지 수, 폭, 크기/글꼴이 바뀔 때만 다시 한다 */
+	/** 줄바꿈은 매 프레임 계산하지 않고 대화, 메시지, 폭, 크기/글꼴이 바뀔 때만 다시 한다 */
 	private void layout(Conversation c, int areaWidth) {
-		String style = bubbleScale() + "/" + metaScale() + "/" + labelScale() + "/" + sizes().bubblePadding + "/"
-				+ sizes().stickerSize + "/" + ModConfig.get().font;
-		if (layoutFor == c && layoutCount == c.messages.size() && layoutWidth == areaWidth && layoutStyle.equals(style)) return;
+		float bubbleS = bubbleScale(), metaS = metaScale(), labelS = labelScale();
+		int paddingS = sizes().bubblePadding, stickerS = sizes().stickerSize;
+		String font = ModConfig.get().font;
+		if (layoutFor == c && layoutRevision == c.revision && layoutWidth == areaWidth
+				&& layoutBubble == bubbleS && layoutMeta == metaS && layoutLabel == labelS
+				&& layoutPadding == paddingS && layoutSticker == stickerS && layoutFont.equals(font)) return;
 		layoutFor = c;
-		layoutCount = c.messages.size();
+		layoutRevision = c.revision;
 		layoutWidth = areaWidth;
-		layoutStyle = style;
+		layoutBubble = bubbleS;
+		layoutMeta = metaS;
+		layoutLabel = labelS;
+		layoutPadding = paddingS;
+		layoutSticker = stickerS;
+		layoutFont = font;
 		rows.clear();
 		contentHeight = 0;
 

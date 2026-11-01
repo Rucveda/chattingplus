@@ -306,7 +306,7 @@ public class WhisperScreen extends Screen {
 
 	/** 내 이름 (채널 채팅에서 알아낸 닉네임 또는 계정 이름) */
 	static boolean isMe(String name) {
-		String me = ModConfig.get().myName;
+		String me = WhisperSender.myName();
 		return name.equalsIgnoreCase(me) || name.equalsIgnoreCase(net.minecraft.client.MinecraftClient.getInstance().getSession().getUsername());
 	}
 

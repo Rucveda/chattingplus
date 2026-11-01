@@ -58,6 +58,8 @@ public final class WhisperStore {
 		public boolean muted;
 		/** 이 대화에만 쓰는 배경 그림. null 이면 기본 배경. 채널과 즐겨찾기 대화만 가진다 ({@link ChatBackground#canCustomize}) */
 		public ModConfig.Background background;
+		/** 메시지가 바뀔 때마다 증가 (저장 안 함). 화면이 줄바꿈을 다시 할지 판단하는 데 쓴다 */
+		transient int revision;
 
 		Conversation(String name) {
 			this.name = name;
@@ -200,6 +202,7 @@ public final class WhisperStore {
 		int overflow = c.messages.size() - Math.max(1, limit);
 		if (overflow > 0) c.messages.subList(0, overflow).clear();
 		c.lastTime = m.time;
+		c.revision++;
 		version++;
 	}
 
@@ -323,16 +326,29 @@ public final class WhisperStore {
 		}
 	}
 
-	/** 지금 내용을 글자로 만들어(게임 스레드) 쓰기 스레드에 넘긴다 */
+	/**
+	 * 지금 내용을 베껴서(게임 스레드) 쓰기 스레드에 넘긴다. 대화가 많으면 글자로 만드는 데 시간이 걸려서
+	 * 그 일은 쓰기 스레드에서 한다. 메시지는 기록에 들어간 뒤 바뀌지 않으므로 목록만 베끼면 된다
+	 */
 	private Future<?> flush() {
 		if (!dirty || file == null) return null;
 		dirty = false;
 		// 메시지 없이 열어보기만 한 대화는 저장하지 않는다 (즐겨찾기는 유지)
 		List<Conversation> list = new ArrayList<>();
-		for (Conversation c : conversations.values()) if (!c.messages.isEmpty() || c.favorite) list.add(c);
-		String json = GSON.toJson(list);
+		for (Conversation c : conversations.values()) if (!c.messages.isEmpty() || c.favorite) list.add(snapshot(c));
 		Path target = file;
-		return WRITER.submit(() -> write(target, json));
+		return WRITER.submit(() -> write(target, GSON.toJson(list)));
+	}
+
+	private static Conversation snapshot(Conversation c) {
+		Conversation copy = new Conversation(c.name);
+		copy.messages = new ArrayList<>(c.messages);
+		copy.unread = c.unread;
+		copy.lastTime = c.lastTime;
+		copy.favorite = c.favorite;
+		copy.muted = c.muted;
+		copy.background = c.background;
+		return copy;
 	}
 
 	/** 임시 파일에 다 쓴 뒤 바꿔치기해서, 쓰는 도중에 게임이 꺼져도 기록 파일이 깨지지 않게 한다 */

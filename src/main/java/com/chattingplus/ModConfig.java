@@ -6,14 +6,19 @@ import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.IOException;
 import java.io.Reader;
-import java.io.Writer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 /** config/chattingplus.json 에 저장되는 설정. 게임을 끈 상태에서 직접 고쳐도 된다. */
 public class ModConfig {
@@ -66,8 +71,10 @@ public class ModConfig {
 	public Map<String, ChannelSettings> channels = new LinkedHashMap<>();
 	/** 채널 하나당 보관하는 최대 메시지 수 (전체 채팅은 양이 많아서 따로) */
 	public int maxMessagesPerChannel = 500;
-	/** 채널 채팅에 표시되는 내 닉네임. 모드로 채널 채팅을 보내면 자동으로 알아낸다. */
+	/** 예전 버전이 서버 구분 없이 저장한 내 닉네임. 그 서버의 닉네임을 아직 모를 때만 쓴다 */
 	public String myName = null;
+	/** 서버 주소 → 채널 채팅에 표시되는 내 닉네임. 모드로 채널 채팅을 보내면 자동으로 알아낸다 */
+	public Map<String, String> myNames = new LinkedHashMap<>();
 	/**
 	 * 귓속말로 인식한 줄과, "보냄/받음"이 들어 있는데 인식하지 못한 줄을 로그(latest.log)에 남긴다.
 	 * 귓속말 내용이 파일에 남으므로 평소에는 끄고, 귓속말이 인식되지 않을 때만 켜서 확인한다.
@@ -241,6 +248,8 @@ public class ModConfig {
 	private void sanitize() {
 		if (whisperPattern == null || whisperPattern.isBlank()) whisperPattern = DEFAULT_PATTERN;
 		if (sizes == null) sizes = new Sizes();
+		if (myNames == null) myNames = new LinkedHashMap<>();
+		myNames.values().removeIf(name -> name == null || name.isBlank());
 		if (customThemes == null) customThemes = new ArrayList<>();
 		customThemes.removeIf(t -> t == null || t.id == null);
 		if (Theme.byId(themePreset) == null) themePreset = "dark";
@@ -266,13 +275,66 @@ public class ModConfig {
 		return list;
 	}
 
+	// ---------------------------------------------------------------- 저장
+	// 조정 바를 끌면 값이 바뀔 때마다 save() 가 불린다. 그때마다 파일을 쓰면 게임이 멈칫하므로 표시만 해 두고,
+	// 마지막으로 바뀐 뒤 SAVE_DELAY_MS 가 지나면 쓰기 스레드에서 한 번에 쓴다
+
+	private static final long SAVE_DELAY_MS = 1000;
+	private static final ExecutorService WRITER = Executors.newSingleThreadExecutor(r -> {
+		Thread thread = new Thread(r, "ChattingPlus config writer");
+		thread.setDaemon(true);
+		return thread;
+	});
+	/** 마지막으로 바뀐 시각. 저장할 게 없으면 0 */
+	private static volatile long dirtySince;
+
+	/** 바뀌었다고 표시한다. 실제 쓰기는 잠시 뒤 {@link #tick()} 에서 */
 	public static void save() {
+		dirtySince = System.currentTimeMillis();
+	}
+
+	/** 매 틱 불린다 */
+	public static void tick() {
+		long since = dirtySince;
+		if (since != 0 && System.currentTimeMillis() - since >= SAVE_DELAY_MS) flush();
+	}
+
+	/** 설정 화면을 닫을 때: 기다리지 않고 남은 저장을 바로 시작한다 */
+	public static void saveNow() {
+		flush();
+	}
+
+	/** 게임을 끌 때: 남은 저장이 끝날 때까지 기다린다 */
+	public static void saveAndWait() {
+		Future<?> pending = flush();
+		if (pending == null) return;
+		try {
+			pending.get(5, TimeUnit.SECONDS);
+		} catch (Exception e) {
+			ChattingPlusClient.LOGGER.error("Failed to finish saving config", e);
+		}
+	}
+
+	/** 글자로 만드는 건 게임 스레드에서(값이 쓰는 도중에 바뀌지 않게), 파일 쓰기는 쓰기 스레드에서 */
+	private static Future<?> flush() {
+		if (dirtySince == 0) return null;
+		dirtySince = 0;
 		Path file = file();
-		if (file == null) return;
+		if (file == null) return null;
+		String json = GSON.toJson(instance);
+		return WRITER.submit(() -> write(file, json));
+	}
+
+	/** 임시 파일에 다 쓴 뒤 바꿔치기해서, 쓰는 도중에 게임이 꺼져도 설정이 깨지지 않게 한다 */
+	private static void write(Path file, String json) {
 		try {
 			Files.createDirectories(file.getParent());
-			try (Writer writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
-				GSON.toJson(instance, writer);
+			Path temp = file.resolveSibling(file.getFileName() + ".tmp");
+			Files.writeString(temp, json, StandardCharsets.UTF_8);
+			try {
+				Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+			} catch (AtomicMoveNotSupportedException e) {
+				Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING);
 			}
 		} catch (IOException e) {
 			ChattingPlusClient.LOGGER.error("Failed to write {}", file, e);

@@ -8,6 +8,10 @@ import java.util.regex.PatternSyntaxException;
 public final class WhisperParser {
 	public record Whisper(String partner, boolean outgoing, String text) {}
 
+	// 채팅 한 줄마다 여러 번 쓰므로 미리 만들어 둔다
+	private static final Pattern COLOR_CODE = Pattern.compile("§.");
+	private static final Pattern LEADING_ICONS = Pattern.compile("^[^\\p{IsHangul}A-Za-z0-9\\[(]*");
+
 	private static String compiledSource;
 	private static Pattern compiled;
 
@@ -15,7 +19,7 @@ public final class WhisperParser {
 
 	/** 귓속말이 아니면 null */
 	public static Whisper parse(String raw) {
-		String line = raw.replaceAll("§.", "").trim();
+		String line = stripColors(raw).trim();
 		Matcher m = pattern().matcher(line);
 		if (!m.matches()) return null;
 
@@ -31,12 +35,16 @@ public final class WhisperParser {
 	 * Together Plus 는 "~tp" 로 시작하는 줄로 통신하고 바닐라 채팅창에서는 스스로 지우지만, 우리 기록까지는 지우지 못한다.
 	 */
 	public static boolean isModData(String text) {
-		return text.replaceAll("§.", "").stripLeading().startsWith("~tp");
+		return stripColors(text).stripLeading().startsWith("~tp");
 	}
 
 	/** 서버가 줄 앞에 붙이는 아이콘 문자와 색 코드를 지운다 */
 	static String stripIcons(String line) {
-		return line.replaceAll("§.", "").replaceFirst("^[^\\p{IsHangul}A-Za-z0-9\\[(]*", "").trim();
+		return LEADING_ICONS.matcher(stripColors(line)).replaceFirst("").trim();
+	}
+
+	static String stripColors(String text) {
+		return text.indexOf('§') < 0 ? text : COLOR_CODE.matcher(text).replaceAll("");
 	}
 
 	/** "[VIP] Steve" 처럼 칭호가 붙어 있으면 마지막 단어(닉네임)만 남긴다. */

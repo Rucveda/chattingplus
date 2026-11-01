@@ -928,4 +928,10 @@ public class SettingsScreen extends Screen {
 	public void close() {
 		if (client != null) client.setScreen(parent);
 	}
+
+	/** 어떤 식으로 닫히든 조정 바로 바꾼 값을 바로 저장한다 */
+	@Override
+	public void removed() {
+		ModConfig.saveNow();
+	}
 }

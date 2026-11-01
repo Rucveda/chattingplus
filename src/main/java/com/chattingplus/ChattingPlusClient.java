@@ -51,11 +51,15 @@ public class ChattingPlusClient implements ClientModInitializer {
 				else client.inGameHud.setOverlayMessage(Text.translatable("chattingplus.popup.none"), false);
 			}
 			UpdateChecker.tick(client);
-			// 바뀐 기록은 몇 초에 한 번 모아서 저장
+			// 바뀐 기록과 설정은 모아서 저장
 			WhisperStore.get().tick();
+			ModConfig.tick();
 		});
 		// 게임을 끌 때는 저장이 끝날 때까지 기다린다
-		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> WhisperStore.get().saveAndWait());
+		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
+			WhisperStore.get().saveAndWait();
+			ModConfig.saveAndWait();
+		});
 
 		// 서버 플러그인이 보내는 귓속말은 보통 시스템 메시지지만, 혹시 몰라 플레이어 채팅도 확인한다
 		ClientReceiveMessageEvents.ALLOW_GAME.register((message, overlay) -> overlay || !onMessage(message, true));
@@ -64,6 +68,7 @@ public class ChattingPlusClient implements ClientModInitializer {
 		// 채널/월드 이동 때도 JOIN 이 다시 불린다. 같은 서버면 WhisperStore 가 기록을 그대로 유지한다.
 		ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
 			WhisperStore.get().load(serverKey(client));
+			WhisperSender.setServer(serverKey(client));
 			UpdateChecker.onJoin();
 		});
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> WhisperStore.get().save());
