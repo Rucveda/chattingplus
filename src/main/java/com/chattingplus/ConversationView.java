@@ -61,6 +61,12 @@ final class ConversationView {
 	private float layoutBubble, layoutMeta, layoutLabel;
 	private int layoutPadding, layoutSticker;
 	private String layoutFont = "";
+	/**
+	 * 리소스를 다시 읽은 횟수. 서버에 다시 들어가면 서버 리소스팩이 다시 적용돼 글자 폭이 바뀌는데, 글꼴 설정 이름은 그대로라
+	 * 이것 없이는 예전 폭으로 잰 말풍선이 남아 오른쪽에 빈 공간이 생긴다
+	 */
+	private static int resourceGeneration;
+	private int layoutGeneration = -1;
 	private int contentHeight;
 	/** 맨 아래에서부터 위로 스크롤한 픽셀 수 */
 	private double scroll;
@@ -287,14 +293,21 @@ final class ConversationView {
 		return !visible[0];
 	}
 
-	/** 줄바꿈은 매 프레임 계산하지 않고 대화, 메시지, 폭, 크기/글꼴이 바뀔 때만 다시 한다 */
+	/** 리소스를 다시 읽었다 (서버 리소스팩 적용, F3+T, 글꼴 새로고침). 열려 있는 모든 대화창·팝업이 줄바꿈을 다시 한다 */
+	static void resourcesReloaded() {
+		resourceGeneration++;
+	}
+
+	/** 줄바꿈은 매 프레임 계산하지 않고 대화, 메시지, 폭, 크기/글꼴, 리소스가 바뀔 때만 다시 한다 */
 	private void layout(Conversation c, int areaWidth) {
 		float bubbleS = bubbleScale(), metaS = metaScale(), labelS = labelScale();
 		int paddingS = sizes().bubblePadding, stickerS = sizes().stickerSize;
 		String font = ModConfig.get().font;
 		if (layoutFor == c && layoutRevision == c.revision && layoutWidth == areaWidth
 				&& layoutBubble == bubbleS && layoutMeta == metaS && layoutLabel == labelS
-				&& layoutPadding == paddingS && layoutSticker == stickerS && layoutFont.equals(font)) return;
+				&& layoutPadding == paddingS && layoutSticker == stickerS && layoutFont.equals(font)
+				&& layoutGeneration == resourceGeneration) return;
+		layoutGeneration = resourceGeneration;
 		layoutFor = c;
 		layoutRevision = c.revision;
 		layoutWidth = areaWidth;

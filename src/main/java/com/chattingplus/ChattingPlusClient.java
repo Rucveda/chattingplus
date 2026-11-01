@@ -88,7 +88,7 @@ public class ChattingPlusClient implements ClientModInitializer {
 		});
 		PopupChat.register();
 
-		// 리소스를 다시 읽으면(F3+T, 글꼴 새로고침) 이모티콘 팩 목록도 다시 읽는다
+		// 리소스를 다시 읽으면(서버 리소스팩 적용, F3+T, 글꼴 새로고침) 이모티콘 팩 목록을 다시 읽고 말풍선 폭도 다시 잰다
 		ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES).registerReloadListener(new SimpleSynchronousResourceReloadListener() {
 			@Override
 			public Identifier getFabricId() {
@@ -98,6 +98,7 @@ public class ChattingPlusClient implements ClientModInitializer {
 			@Override
 			public void reload(ResourceManager manager) {
 				Emotes.invalidate();
+				ConversationView.resourcesReloaded();
 			}
 		});
 	}
